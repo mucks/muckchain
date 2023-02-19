@@ -1,12 +1,14 @@
 use log::debug;
 
+use tokio::time::{sleep, Duration};
+
 use super::{
     net_addr::NetAddr,
     rpc::{new_channel, Channel},
     transport::DynTransport,
     LocalTransport, Network,
 };
-use crate::Result;
+use crate::{crypto::PrivateKey, Result};
 
 pub type NodeID = String;
 
@@ -15,15 +17,21 @@ pub struct Node {
     id: NodeID,
     transport: DynTransport,
     rpc_channel: Channel,
+    private_key: Option<PrivateKey>,
 }
 
 impl Node {
-    pub fn new(id: String, transport: DynTransport) -> Self {
+    pub fn new(id: String, transport: DynTransport, private_key: Option<PrivateKey>) -> Self {
         Self {
             id,
             transport,
             rpc_channel: new_channel(),
+            private_key,
         }
+    }
+
+    pub fn is_validator(&self) -> bool {
+        self.private_key.is_some()
     }
 
     pub fn channel(&self) -> Channel {
@@ -33,6 +41,7 @@ impl Node {
     pub fn id(&self) -> NodeID {
         self.id.clone()
     }
+
     pub fn transport_addr(&self) -> NetAddr {
         self.transport.addr()
     }
@@ -42,9 +51,32 @@ impl Node {
             .broadcast(format!("Starting Node={}", self.id).as_bytes().to_vec())
             .await?;
 
+        if self.is_validator() {
+            self.start_validator_loop();
+        }
+
         self.listen().await;
         Ok(())
     }
+
+    fn start_validator_loop(&self) {
+        let s = self.clone();
+
+        tokio::spawn(async move {
+            s.validator_loop().await;
+        });
+    }
+
+    async fn validator_loop(&self) {
+        // BlockTime in seconds TODO: put this in config
+        let block_time_secs = 5;
+
+        loop {
+            sleep(Duration::from_secs(block_time_secs)).await;
+        }
+    }
+
+    async fn create_new_block(self) {}
 
     pub async fn listen(&self) {
         loop {
@@ -61,6 +93,7 @@ pub async fn create_and_start_node(
     network: Network,
     node_id: &str,
     transport_addr: &str,
+    private_key: Option<PrivateKey>,
 ) -> Result<Node> {
     // First we create a transport which handles the sending of messages
     let tr = LocalTransport::new(transport_addr.into());
@@ -74,7 +107,7 @@ pub async fn create_and_start_node(
         Now we create a new Node with the transport so that we can
         send and broadcast messages to all nodes within this node
     */
-    let node = Node::new(node_id.into(), Box::new(tr.clone()));
+    let node = Node::new(node_id.into(), Box::new(tr.clone()), private_key);
 
     /*
         After the creation we add the nodes rpc_channel to the network

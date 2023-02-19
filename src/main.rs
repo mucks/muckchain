@@ -1,5 +1,11 @@
+mod core;
+mod crypto;
+mod model;
 mod net;
+mod util;
+
 use anyhow::Result;
+use crypto::PrivateKey;
 use net::{create_and_start_node, LocalTransport, Network, Node, NodeID, Transport};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -10,8 +16,11 @@ async fn main() -> Result<()> {
 
     let network = Network::new();
 
-    let local = create_and_start_node(network.clone(), "LOCAL_NODE", "TR_LOCAL").await?;
-    let remote = create_and_start_node(network.clone(), "REMOTE_NODE", "TR_REMOTE").await?;
+    let private_key = PrivateKey::generate();
+    let local =
+        create_and_start_node(network.clone(), "LOCAL_NODE", "TR_LOCAL", Some(private_key)).await?;
+
+    let remote = create_and_start_node(network.clone(), "REMOTE_NODE", "TR_REMOTE", None).await?;
     add_late_node(network.clone()).await?;
 
     network.listen().await;
@@ -22,7 +31,7 @@ async fn main() -> Result<()> {
 async fn add_late_node(network: Network) -> Result<()> {
     tokio::spawn(async move {
         sleep(Duration::from_secs(2)).await;
-        let late = create_and_start_node(network, "LATE_NODE", "TR_LATE")
+        let late = create_and_start_node(network, "LATE_NODE", "TR_LATE", None)
             .await
             .unwrap();
     });
