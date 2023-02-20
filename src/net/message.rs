@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::core::{DynDecoder, Transaction};
+use crate::core::{decode, Decodable, DynDecoder, Transaction};
 
 use super::rpc::RPC;
 
@@ -12,12 +12,16 @@ pub enum Message {
     Transaction(Transaction),
 }
 
+#[typetag::serde]
+impl Decodable for Message {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
 impl Message {
-    pub fn from_rpc(rpc: &RPC, decoder: DynDecoder) -> Result<Self> {
-        // let mut dec = *decoder.lock().unwrap();
-        // let msg: Message = from_decoder(&mut dec, &rpc.data)?;
-        todo!()
-        // let msg: Message = from_decoder(decoder, &rpc.data)?;
-        // Ok(msg)
+    pub fn from_rpc(decoder: DynDecoder, rpc: &RPC) -> Result<Self> {
+        let msg = decode(decoder, &rpc.data)?;
+        Ok(msg)
     }
 }

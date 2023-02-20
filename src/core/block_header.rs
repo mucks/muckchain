@@ -1,4 +1,4 @@
-use super::DynEncoder;
+use super::{DynEncoder, Encodable};
 use crate::model::MyHash;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -11,6 +11,9 @@ pub struct BlockHeader {
     pub data_hash: MyHash,
     pub prev_block_hash: Option<MyHash>,
 }
+
+#[typetag::serde]
+impl Encodable for BlockHeader {}
 
 impl BlockHeader {
     pub fn bytes(&self, enc: DynEncoder) -> Result<Vec<u8>> {

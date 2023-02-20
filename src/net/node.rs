@@ -141,11 +141,9 @@ pub async fn create_and_start_node(
 
     */
 
-    let json_decoder = JsonDecoder::new();
-
     let config = NodeConfig {
         encoder: Box::new(JsonEncoder),
-        decoder: Arc::new(Mutex::new(Box::new(json_decoder))),
+        decoder: Box::new(JsonDecoder),
     };
 
     /*

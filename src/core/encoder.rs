@@ -1,13 +1,14 @@
 use std::fmt::Debug;
 
+#[typetag::serde(tag = "type")]
+pub trait Encodable {}
+
 use anyhow::Result;
-use erased_serde::Serialize;
-// use serde::{de::DeserializeOwned, Serialize};
 
 pub type DynEncoder = Box<dyn Encoder>;
 
 pub trait Encoder: EncoderClone + Debug + Send + Sync {
-    fn encode(&self, val: &dyn Serialize) -> Result<Vec<u8>>;
+    fn encode(&self, val: &dyn Encodable) -> Result<Vec<u8>>;
 }
 
 pub trait EncoderClone {
@@ -33,7 +34,7 @@ impl Clone for Box<dyn Encoder> {
 pub struct JsonEncoder;
 
 impl Encoder for JsonEncoder {
-    fn encode(&self, val: &dyn Serialize) -> Result<Vec<u8>> {
+    fn encode(&self, val: &dyn Encodable) -> Result<Vec<u8>> {
         let bytes = serde_json::to_vec(val)?;
         Ok(bytes)
     }

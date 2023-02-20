@@ -1,15 +1,25 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::model::MyHash;
+use crate::{core::Encodable, model::MyHash};
 
-use super::{DynEncoder, Hasher, TxHasher};
+use super::{Decodable, DynEncoder, Hasher, TxHasher};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Transaction {
     pub data: Vec<u8>,
     #[serde(skip)]
     pub hash: Option<MyHash>,
+}
+
+#[typetag::serde]
+impl Encodable for Transaction {}
+
+#[typetag::serde]
+impl Decodable for Transaction {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl Transaction {
