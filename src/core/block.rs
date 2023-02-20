@@ -1,14 +1,8 @@
-use crate::model::Hash;
+use crate::model::MyHash;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockHeader {
-    pub version: u32,
-    pub height: u32,
-    pub timestamp: u128,
-    pub data_hash: Hash,
-    pub prev_block_hash: Option<Hash>,
-}
+use super::{BlockHeader, Encoder};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {

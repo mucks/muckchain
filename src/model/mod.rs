@@ -1,5 +1,5 @@
 mod address;
-mod hash;
+mod my_hash;
 
 pub use address::Address;
-pub use hash::Hash;
+pub use my_hash::MyHash;

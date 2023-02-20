@@ -1,3 +1,5 @@
+mod random;
+
 pub fn from_bytes<const N: usize>(bytes: &[u8]) -> [u8; N] {
     if bytes.len() != N {
         panic!(

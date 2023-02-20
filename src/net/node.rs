@@ -1,32 +1,52 @@
+use std::sync::Arc;
+
 use log::debug;
 
-use tokio::time::{sleep, Duration};
+use tokio::{
+    sync::Mutex,
+    time::{sleep, Duration},
+};
 
 use super::{
     net_addr::NetAddr,
     rpc::{new_channel, Channel},
     transport::DynTransport,
-    LocalTransport, Network,
+    tx_pool, LocalTransport, Network, NodeConfig, TxPool,
 };
-use crate::{crypto::PrivateKey, Result};
+use crate::{
+    core::{JsonDecoder, JsonEncoder, Transaction},
+    crypto::PrivateKey,
+    Result,
+};
 
 pub type NodeID = String;
 
+// Every value with state needs to be clonable in a way so that it can be moved to another thread
+// and still be usable and mutable
 #[derive(Debug, Clone)]
 pub struct Node {
     id: NodeID,
     transport: DynTransport,
     rpc_channel: Channel,
     private_key: Option<PrivateKey>,
+    tx_pool: tx_pool::TxPool,
+    config: NodeConfig,
 }
 
 impl Node {
-    pub fn new(id: String, transport: DynTransport, private_key: Option<PrivateKey>) -> Self {
+    pub fn new(
+        id: String,
+        transport: DynTransport,
+        private_key: Option<PrivateKey>,
+        config: NodeConfig,
+    ) -> Self {
         Self {
             id,
             transport,
             rpc_channel: new_channel(),
             private_key,
+            tx_pool: TxPool::new(),
+            config,
         }
     }
 
@@ -59,6 +79,8 @@ impl Node {
         Ok(())
     }
 
+    // Start validator loop in another thread
+    // clone self and move it to the new thread
     fn start_validator_loop(&self) {
         let s = self.clone();
 
@@ -74,6 +96,16 @@ impl Node {
         loop {
             sleep(Duration::from_secs(block_time_secs)).await;
         }
+    }
+
+    pub async fn broadcast_transaction(&self, transaction: Transaction) -> Result<()> {
+        let s = self.clone();
+        tokio::spawn(async move {
+            //TODO: handle these errors
+            let data = transaction.encode(s.config.encoder).unwrap();
+            s.transport.broadcast(data).await.unwrap();
+        });
+        Ok(())
     }
 
     async fn create_new_block(self) {}
@@ -104,10 +136,23 @@ pub async fn create_and_start_node(
     network.add_transport(Box::new(tr.clone())).await?;
 
     /*
+        Now we create a config where we can define the dynamic traits
+        that configure for instance which encoder to use for this node
+
+    */
+
+    let json_decoder = JsonDecoder::new();
+
+    let config = NodeConfig {
+        encoder: Box::new(JsonEncoder),
+        decoder: Arc::new(Mutex::new(Box::new(json_decoder))),
+    };
+
+    /*
         Now we create a new Node with the transport so that we can
         send and broadcast messages to all nodes within this node
     */
-    let node = Node::new(node_id.into(), Box::new(tr.clone()), private_key);
+    let node = Node::new(node_id.into(), Box::new(tr.clone()), private_key, config);
 
     /*
         After the creation we add the nodes rpc_channel to the network
