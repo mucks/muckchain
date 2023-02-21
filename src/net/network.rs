@@ -47,7 +47,7 @@ impl Network {
         transport_addr: NetAddr,
         node_channel: Channel,
     ) {
-        debug!("Adding NodeChannel from Node={id} with Transport={transport_addr} to Network ...");
+        debug!("Adding NodeChannel from Node={id} with Transport={transport_addr} to Network");
         self.node_channels
             .lock()
             .await
@@ -55,7 +55,7 @@ impl Network {
     }
 
     pub async fn add_transport(&self, tr: DynTransport) -> Result<()> {
-        debug!("Adding Transport={} to Network ...", tr.addr());
+        debug!("Adding Transport={} to Network", tr.addr());
 
         self.transports.lock().await.insert(tr.addr(), tr.clone());
         self.connect_transport_to_transports(tr.clone()).await?;

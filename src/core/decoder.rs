@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::{any::Any, fmt::Debug};
 
 #[typetag::serde(tag = "type")]
-pub trait Decodable {
+pub trait Decodable: Send + Sync {
     fn as_any(&self) -> &dyn Any;
 }
 

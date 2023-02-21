@@ -7,14 +7,21 @@ pub trait Hasher<T>
 where
     T: Sized,
 {
-    fn hash(&self, encoder: DynEncoder, t: &T) -> Result<MyHash>;
+    fn hash(&self, t: &T) -> Result<MyHash>;
 }
 
-pub struct BlockHeaderHasher;
+pub struct BlockHeaderHasher {
+    enc: DynEncoder,
+}
+impl BlockHeaderHasher {
+    pub fn new(enc: DynEncoder) -> Self {
+        BlockHeaderHasher { enc }
+    }
+}
 
 impl Hasher<BlockHeader> for BlockHeaderHasher {
-    fn hash(&self, enc: DynEncoder, block_header: &BlockHeader) -> Result<MyHash> {
-        let bytes = block_header.bytes(enc)?;
+    fn hash(&self, block_header: &BlockHeader) -> Result<MyHash> {
+        let bytes = block_header.bytes(&self.enc)?;
         let hash = MyHash::from_bytes(Sha256::digest(bytes).as_slice());
         Ok(hash)
     }
@@ -23,7 +30,8 @@ impl Hasher<BlockHeader> for BlockHeaderHasher {
 pub struct TxHasher;
 
 impl Hasher<Transaction> for TxHasher {
-    fn hash(&self, enc: DynEncoder, tx: &Transaction) -> Result<MyHash> {
+    // currently the encoder is not needed here as we only hash the transaction data
+    fn hash(&self, tx: &Transaction) -> Result<MyHash> {
         let bytes = tx.data.clone();
         let hash = MyHash::from_bytes(Sha256::digest(bytes).as_slice());
         Ok(hash)

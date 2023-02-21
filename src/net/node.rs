@@ -1,25 +1,35 @@
-use std::sync::Arc;
+use crate::core::{DynDecoder, DynEncoder};
 
-use log::debug;
-
-use tokio::{
-    sync::Mutex,
-    time::{sleep, Duration},
-};
+use log::{debug, error};
 
 use super::{
     net_addr::NetAddr,
     rpc::{new_channel, Channel},
     transport::DynTransport,
-    tx_pool, LocalTransport, Network, NodeConfig, TxPool,
+    tx_pool,
+    validator::{Validator, ValidatorConfig},
+    LocalTransport, Network, TxPool,
 };
+
 use crate::{
-    core::{JsonDecoder, JsonEncoder, Transaction},
+    core::{Blockchain, JsonDecoder, JsonEncoder, Transaction},
     crypto::PrivateKey,
+    net::message::Message,
     Result,
 };
 
 pub type NodeID = String;
+
+#[derive(Debug, Clone)]
+pub struct EncodingConfig {
+    pub encoder: DynEncoder,
+    pub decoder: DynDecoder,
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeConfig {
+    pub encoding: EncodingConfig,
+}
 
 // Every value with state needs to be clonable in a way so that it can be moved to another thread
 // and still be usable and mutable
@@ -28,30 +38,39 @@ pub struct Node {
     id: NodeID,
     transport: DynTransport,
     rpc_channel: Channel,
-    private_key: Option<PrivateKey>,
     tx_pool: tx_pool::TxPool,
     config: NodeConfig,
+    validator: Option<Validator>,
+    blockchain: Blockchain,
 }
 
 impl Node {
     pub fn new(
         id: String,
         transport: DynTransport,
-        private_key: Option<PrivateKey>,
         config: NodeConfig,
+        validator_config: Option<ValidatorConfig>,
     ) -> Self {
-        Self {
+        let mut node = Self {
             id,
             transport,
             rpc_channel: new_channel(),
-            private_key,
             tx_pool: TxPool::new(),
+            validator: None,
             config,
-        }
-    }
+            blockchain: Blockchain::new(),
+        };
 
-    pub fn is_validator(&self) -> bool {
-        self.private_key.is_some()
+        if let Some(validator_config) = validator_config {
+            debug!("Node {} is a validator", node.id);
+            node.validator = Some(Validator::new(
+                validator_config,
+                node.blockchain.clone(),
+                node.tx_pool.clone(),
+                node.transport.clone(),
+            ));
+        }
+        node
     }
 
     pub fn channel(&self) -> Channel {
@@ -66,56 +85,98 @@ impl Node {
         self.transport.addr()
     }
 
-    pub async fn start(&self) -> Result<()> {
-        self.transport
-            .broadcast(format!("Starting Node={}", self.id).as_bytes().to_vec())
-            .await?;
-
-        if self.is_validator() {
-            self.start_validator_loop();
+    pub async fn start(&mut self) -> Result<()> {
+        if let Some(validator) = &self.validator {
+            validator.start_thread();
         }
+
+        // let msg = Message::Text("hello".into());
+
+        // self.transport
+        //     .broadcast(self.config.encoding.encoder.encode(&msg)?)
+        //     .await?;
 
         self.listen().await;
         Ok(())
     }
 
-    // Start validator loop in another thread
-    // clone self and move it to the new thread
-    fn start_validator_loop(&self) {
-        let s = self.clone();
-
-        tokio::spawn(async move {
-            s.validator_loop().await;
-        });
-    }
-
-    async fn validator_loop(&self) {
-        // BlockTime in seconds TODO: put this in config
-        let block_time_secs = 5;
-
-        loop {
-            sleep(Duration::from_secs(block_time_secs)).await;
-        }
-    }
-
+    // Send a transaction to all nodes in the network
     pub async fn broadcast_transaction(&self, transaction: Transaction) -> Result<()> {
         let s = self.clone();
+
         tokio::spawn(async move {
-            //TODO: handle these errors
-            let data = transaction.encode(s.config.encoder).unwrap();
-            s.transport.broadcast(data).await.unwrap();
+            let data = match transaction.encode(s.config.encoding.encoder) {
+                Ok(data) => data,
+                Err(e) => {
+                    error!("Error encoding transaction: {:?}", e);
+                    return;
+                }
+            };
+
+            if let Err(err) = s.transport.broadcast(data).await {
+                error!("Error broadcasting transaction: {:?}", err);
+            }
         });
         Ok(())
     }
 
-    async fn create_new_block(self) {}
-
+    // Listen to the rpc_channel for new messages
     pub async fn listen(&self) {
         loop {
             if let Some(rpc) = self.rpc_channel.1.lock().await.recv().await {
                 debug!("Node={} received RPC from={}", self.id, rpc.from);
+
+                // Decode the message
+                let msg = match Message::from_rpc(self.config.encoding.decoder.clone(), &rpc) {
+                    Ok(msg) => msg,
+                    Err(e) => {
+                        error!("Error decoding message: {:?}", e);
+                        continue;
+                    }
+                };
+
+                self.process_message(msg).await;
             }
         }
+    }
+
+    async fn process_message(&self, msg: Message) {
+        match msg {
+            Message::Transaction(tx) => {
+                if let Err(err) = self.process_transaction(tx).await {
+                    error!("Error processing transaction: {:?}", err);
+                };
+            }
+            Message::Text(text) => {
+                debug!("Node={} received text={}", self.id, text);
+            }
+        }
+    }
+
+    async fn process_transaction(&self, mut tx: Transaction) -> Result<()> {
+        let tx_hash = tx.hash(self.config.encoding.encoder.clone()).await?;
+        // Check if we already have this transaction in our pool
+        if self.tx_pool.has_tx(&tx_hash).await {
+            debug!("Node={} already has transaction={}", self.id, tx_hash);
+            return Ok(());
+        }
+        // Set the date we first saw this transaction: used for sorting
+        // TODO: figure out if theres a better way to do this since it requires the tx to be mut
+        let first_seen = tokio::time::Instant::now().elapsed().as_nanos();
+        tx.set_first_seen(first_seen);
+
+        // Verify the transaction
+        tx.verify()?;
+
+        if let Err(err) = self
+            .tx_pool
+            .add_tx(self.config.encoding.encoder.clone(), tx)
+            .await
+        {
+            error!("could not add transaction to tx_pool: {:?}", err);
+        }
+
+        Ok(())
     }
 }
 
@@ -141,16 +202,34 @@ pub async fn create_and_start_node(
 
     */
 
-    let config = NodeConfig {
+    let encoding_config = EncodingConfig {
         encoder: Box::new(JsonEncoder),
         decoder: Box::new(JsonDecoder),
     };
+
+    let config = NodeConfig {
+        encoding: encoding_config.clone(),
+    };
+
+    /*
+        If the node is a validator we create a validator config which
+        contains the private key of the validator
+    */
+
+    let private_key = PrivateKey::generate();
+    let validator_config = ValidatorConfig::new(encoding_config, private_key, 5000);
 
     /*
         Now we create a new Node with the transport so that we can
         send and broadcast messages to all nodes within this node
     */
-    let node = Node::new(node_id.into(), Box::new(tr.clone()), private_key, config);
+
+    let node = Node::new(
+        node_id.into(),
+        Box::new(tr.clone()),
+        config,
+        Some(validator_config),
+    );
 
     /*
         After the creation we add the nodes rpc_channel to the network
@@ -165,7 +244,7 @@ pub async fn create_and_start_node(
         Finally we start a new Async Task in order to start the node and listen
         to those forwarded messages
     */
-    let node_clone = node.clone();
+    let mut node_clone = node.clone();
     tokio::spawn(async move { node_clone.start().await });
 
     Ok(node)

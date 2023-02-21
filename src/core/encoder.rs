@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 #[typetag::serde(tag = "type")]
-pub trait Encodable {}
+pub trait Encodable: Send + Sync {}
 
 use anyhow::Result;
 

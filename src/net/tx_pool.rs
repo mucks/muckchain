@@ -6,36 +6,60 @@
 
 */
 
-use crate::core::Transaction;
+use crate::core::{DynEncoder, Encoder, Transaction};
 use crate::model::MyHash;
+use anyhow::{anyhow, Result};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
 #[derive(Debug, Clone)]
 pub struct TxPool {
-    transactions: Arc<RwLock<HashMap<MyHash, Transaction>>>,
+    all_txs: Arc<RwLock<HashMap<MyHash, Transaction>>>,
+    pending_txs: Arc<RwLock<HashMap<MyHash, Transaction>>>,
 }
 
 impl TxPool {
     pub fn new() -> Self {
         Self {
-            transactions: Arc::new(RwLock::new(HashMap::new())),
+            all_txs: Arc::new(RwLock::new(HashMap::new())),
+            pending_txs: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    pub async fn add_transaction(&self, transaction: Transaction) {
-        // self.transactions
-        //     .write()
-        //     .await
-        //     .insert(transaction.hash, transaction);
+    pub async fn add_tx(&self, encoder: DynEncoder, tx: Transaction) -> Result<()> {
+        let tx_hash = tx.hash(encoder).await?;
+        self.all_txs.write().await.insert(tx_hash, tx.clone());
+        self.pending_txs.write().await.insert(tx_hash, tx);
+
+        Ok(())
+    }
+    pub async fn pending(&self) -> Result<Vec<Transaction>> {
+        let mut txs: Vec<Transaction> = self.pending_txs.read().await.values().cloned().collect();
+
+        // If some transactions have no valid timestamp return an error
+        if txs.iter().any(|tx| tx.first_seen() == 0) {
+            return Err(anyhow!("some transaction have first_seen set to 0 which means it didn't get set when it arrived at the node, make sure to set_first_seen after you receive a transaction"));
+        }
+
+        txs.sort_by_key(|a| a.first_seen());
+
+        Ok(txs)
     }
 
-    pub async fn remove_transaction(&self, transaction: &Transaction) {
+    pub async fn has_tx(&self, tx_hash: &MyHash) -> bool {
+        self.all_txs.read().await.contains_key(tx_hash)
+    }
+
+    pub async fn clear_pending(&self) {
+        self.pending_txs.write().await.clear();
+    }
+
+    pub async fn remove_tx(&self, tx: &Transaction) {
         // let mut transactions = self.transactions.write().await;
         // transactions.retain(|t| t != transaction);
     }
 
-    pub async fn get_transactions(&self) -> Vec<Transaction> {
+    pub async fn get_tx(&self) -> Vec<Transaction> {
         todo!()
         // self.transactions.read().await.clone()
     }
