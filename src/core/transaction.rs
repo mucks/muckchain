@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     core::Encodable,
-    crypto::{PublicKey, Signature},
+    crypto::{PrivateKey, PublicKey, Signature},
     model::MyHash,
 };
 
@@ -19,9 +19,9 @@ pub struct Transaction {
     public_key_of_sender: Option<PublicKey>,
     signature: Option<Signature>,
 
-    #[serde(skip)]
     // we cache the hash of the transaction to avoid recomputing it
-    hash: Arc<RwLock<Option<MyHash>>>,
+    #[serde(skip)]
+    hash: Option<MyHash>,
     #[serde(skip)]
     first_seen: u128,
 }
@@ -41,28 +41,37 @@ impl Transaction {
     pub fn new(data: Vec<u8>) -> Self {
         Transaction {
             data,
-            hash: Arc::new(RwLock::new(None)),
+            hash: None,
             first_seen: 0,
             public_key_of_sender: None,
             signature: None,
         }
     }
 
+    pub fn sign(&mut self, private_key: &PrivateKey) {
+        let data = self.data.clone();
+        self.public_key_of_sender = Some(private_key.public_key());
+        self.signature = Some(private_key.sign(&data));
+    }
+
     pub fn verify(&self) -> Result<()> {
         let sig = self
             .signature
             .as_ref()
-            .ok_or_else(|| anyhow!("transaction has no signature!"))?;
+            .ok_or_else(|| anyhow!("transaction {:?} has no signature!", self.hash))?;
 
         let pub_key = self
             .public_key_of_sender
             .as_ref()
-            .ok_or_else(|| anyhow!("transaction has no public_key_of_sender!"))?;
+            .ok_or_else(|| anyhow!("transaction {:?} has no public_key_of_sender!", self.hash))?;
 
         if sig.verify(&self.data, pub_key) {
             Ok(())
         } else {
-            Err(anyhow!("transaction has an invalid signature!"))
+            Err(anyhow!(
+                "transaction {:?} has an invalid signature!",
+                self.hash
+            ))
         }
     }
 
@@ -75,17 +84,17 @@ impl Transaction {
         self.first_seen = first_seen;
     }
 
-    pub async fn hash(&self, encoder: DynEncoder) -> Result<MyHash> {
-        if let Some(hash) = self.hash.read().await.as_ref() {
-            Ok(*hash)
+    pub async fn hash(&mut self, hasher: Box<dyn Hasher<Self>>) -> Result<MyHash> {
+        if let Some(hash) = self.hash {
+            Ok(hash)
         } else {
-            let hash = TxHasher.hash(self)?;
-            *self.hash.write().await = Some(hash);
+            let hash = hasher.hash(self)?;
+            self.hash = Some(hash);
             Ok(hash)
         }
     }
 
-    pub fn encode(&self, encoder: DynEncoder) -> Result<Vec<u8>> {
+    pub fn encode(&self, encoder: &DynEncoder) -> Result<Vec<u8>> {
         encoder.encode(self)
     }
 }

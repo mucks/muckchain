@@ -1,16 +1,27 @@
-use super::{block_header::BlockHeader, Block};
+use crate::model::MyHash;
+
+use super::{block_header::BlockHeader, Block, DynStorage, Hasher};
+use anyhow::{anyhow, Result};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[derive(Debug, Clone)]
+pub struct BlockchainConfig {
+    pub genesis_block: Block,
+    pub storage: DynStorage,
+}
+
+#[derive(Debug, Clone)]
 pub struct Blockchain {
+    config: BlockchainConfig,
     block_headers: Arc<RwLock<Vec<BlockHeader>>>,
 }
 
 impl Blockchain {
-    pub fn new() -> Self {
+    pub fn new(config: BlockchainConfig) -> Self {
         Self {
-            block_headers: Arc::new(RwLock::new(Vec::new())),
+            block_headers: Arc::new(RwLock::new(vec![config.genesis_block.header.clone()])),
+            config,
         }
     }
 
@@ -31,11 +42,23 @@ impl Blockchain {
 
     pub async fn get_prev_header(&self, height: u32) -> Option<BlockHeader> {
         if height == 0 {
-            return None;
+            self.get_header(0).await
+        } else {
+            self.get_header(height - 1).await
         }
-
-        let block_headers = self.block_headers.read().await;
-        let block_header = block_headers.get((height - 1) as usize)?;
-        Some(block_header.clone())
     }
+
+    // pub async fn get_prev_block_hash(
+    //     &self,
+    //     hasher: &dyn Hasher<BlockHeader>,
+    //     height: u32,
+    // ) -> Result<MyHash> {
+    //     let prev_header = self.get_prev_header(height).await.ok_or_else(|| {
+    //         anyhow!(
+    //             "could not get previous block header for block_height: {}",
+    //             height
+    //         )
+    //     })?;
+    //     hasher.hash(&prev_header)
+    // }
 }

@@ -6,9 +6,10 @@
 
 */
 
-use crate::core::{DynEncoder, Encoder, Transaction};
+use crate::core::{DynEncoder, Encoder, Hasher, Transaction};
 use crate::model::MyHash;
 use anyhow::{anyhow, Result};
+use log::debug;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -26,8 +27,13 @@ impl TxPool {
         }
     }
 
-    pub async fn add_tx(&self, encoder: DynEncoder, tx: Transaction) -> Result<()> {
-        let tx_hash = tx.hash(encoder).await?;
+    pub async fn add_tx(
+        &self,
+        hasher: Box<dyn Hasher<Transaction>>,
+        mut tx: Transaction,
+    ) -> Result<()> {
+        let tx_hash = tx.hash(hasher).await?;
+        debug!("adding tx to pool: {:?}", tx_hash);
         self.all_txs.write().await.insert(tx_hash, tx.clone());
         self.pending_txs.write().await.insert(tx_hash, tx);
 

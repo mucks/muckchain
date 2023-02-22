@@ -1,9 +1,9 @@
 use crate::{
-    core::{Block, Blockchain, DynDecoder, DynEncoder},
+    core::{Block, Blockchain, DynDecoder, DynEncoder, Transaction},
     crypto::PrivateKey,
 };
 
-use super::{node::EncodingConfig, DynTransport, TxPool};
+use super::{message_sender::MessageSender, node::EncodingConfig, DynTransport, TxPool};
 use anyhow::{anyhow, Result};
 use log::error;
 use std::time::Duration;
@@ -32,6 +32,7 @@ pub struct Validator {
     blockchain: Blockchain,
     tx_pool: TxPool,
     transport: DynTransport,
+    msg_sender: MessageSender,
 }
 
 impl Validator {
@@ -40,17 +41,36 @@ impl Validator {
         blockchain: Blockchain,
         tx_pool: TxPool,
         transport: DynTransport,
+        msg_sender: MessageSender,
     ) -> Self {
         Self {
             config,
             blockchain,
             tx_pool,
             transport,
+            msg_sender,
         }
     }
+
+    // TODO: move this to a test
+    fn send_signed_test_transaction(&self) {
+        let mut tx = Transaction::new("hello world!".into());
+        tx.sign(&self.config.private_key);
+
+        let msg_sender = self.msg_sender.clone();
+
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(1000)).await;
+            msg_sender.broadcast_transaction_thread(tx);
+        });
+    }
+
     // Start validator loop in another thread
     // clone self and move it to the new thread
     pub fn start_thread(&self) {
+        // Send test transaction
+        self.send_signed_test_transaction();
+
         let s = self.clone();
 
         tokio::spawn(async move {
@@ -61,24 +81,10 @@ impl Validator {
     pub async fn start(&self) {
         loop {
             sleep(Duration::from_millis(self.config.block_time_ms)).await;
-        }
-    }
-
-    fn broadcast_block(&self, block: Block) {
-        let v = self.clone();
-        tokio::spawn(async move {
-            let data = match v.config.encoding.encoder.encode(&block) {
-                Ok(data) => data,
-                Err(err) => {
-                    error!("Error encoding block: {}", err);
-                    return;
-                }
-            };
-
-            if let Err(err) = v.transport.broadcast(data).await {
-                error!("Error broadcasting block: {}", err);
+            if let Err(err) = self.create_new_block().await {
+                error!("Error creating new block: {:?}", err);
             }
-        });
+        }
     }
 
     // Create a new block and broadcast it to all the nodes in the network
@@ -98,9 +104,7 @@ impl Validator {
 
         self.tx_pool.clear_pending().await;
 
-        self.broadcast_block(block);
-
-        // broadcast block
+        self.msg_sender.broadcast_block_thread(block);
 
         Ok(())
     }

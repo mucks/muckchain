@@ -28,6 +28,30 @@ impl LocalTransport {
             peers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
+
+    pub fn listen(&self) {
+        let c = self.channel.clone();
+        let peers = self.peers.clone();
+        let addr = self.addr.clone();
+
+        tokio::spawn(async move {
+            loop {
+                if let Some(rpc) = c.1.lock().await.recv().await {
+                    debug!("LocalTransport={} received message from {}", addr, rpc.from);
+
+                    let mut peers_mut = peers.write().await;
+                    let peer = peers_mut
+                        .get_mut(&rpc.from)
+                        .ok_or_else(|| {
+                            anyhow!("LocalTransport={} could not find peer={}", addr, rpc.from)
+                        })
+                        .unwrap();
+
+                    peer.sender().send(rpc).await.unwrap();
+                }
+            }
+        });
+    }
 }
 
 #[async_trait]

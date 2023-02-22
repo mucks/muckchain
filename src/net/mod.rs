@@ -1,5 +1,6 @@
 mod local_transport;
 mod message;
+mod message_sender;
 mod net_addr;
 mod network;
 mod node;

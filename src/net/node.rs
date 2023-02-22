@@ -1,8 +1,17 @@
-use crate::core::{DynDecoder, DynEncoder};
+use std::time::Duration;
 
-use log::{debug, error};
+use crate::{
+    core::{
+        create_genesis_block, Block, BlockHasher, BlockHeader, BlockchainConfig, DynDecoder,
+        DynEncoder, Hasher, MemStorage, TxHasher,
+    },
+    model::MyHash,
+};
+
+use log::{debug, error, info};
 
 use super::{
+    message_sender::MessageSender,
     net_addr::NetAddr,
     rpc::{new_channel, Channel},
     transport::DynTransport,
@@ -29,6 +38,8 @@ pub struct EncodingConfig {
 #[derive(Debug, Clone)]
 pub struct NodeConfig {
     pub encoding: EncodingConfig,
+    pub tx_hasher: Box<dyn Hasher<Transaction>>,
+    pub block_hasher: Box<dyn Hasher<Block>>,
 }
 
 // Every value with state needs to be clonable in a way so that it can be moved to another thread
@@ -42,6 +53,7 @@ pub struct Node {
     config: NodeConfig,
     validator: Option<Validator>,
     blockchain: Blockchain,
+    msg_sender: MessageSender,
 }
 
 impl Node {
@@ -49,16 +61,20 @@ impl Node {
         id: String,
         transport: DynTransport,
         config: NodeConfig,
+        blockchain_config: BlockchainConfig,
         validator_config: Option<ValidatorConfig>,
     ) -> Self {
+        let msg_sender = MessageSender::new(transport.clone(), config.encoding.encoder.clone());
+
         let mut node = Self {
             id,
             transport,
             rpc_channel: new_channel(),
             tx_pool: TxPool::new(),
             validator: None,
+            blockchain: Blockchain::new(blockchain_config),
             config,
-            blockchain: Blockchain::new(),
+            msg_sender: msg_sender.clone(),
         };
 
         if let Some(validator_config) = validator_config {
@@ -68,6 +84,7 @@ impl Node {
                 node.blockchain.clone(),
                 node.tx_pool.clone(),
                 node.transport.clone(),
+                msg_sender,
             ));
         }
         node
@@ -97,26 +114,6 @@ impl Node {
         //     .await?;
 
         self.listen().await;
-        Ok(())
-    }
-
-    // Send a transaction to all nodes in the network
-    pub async fn broadcast_transaction(&self, transaction: Transaction) -> Result<()> {
-        let s = self.clone();
-
-        tokio::spawn(async move {
-            let data = match transaction.encode(s.config.encoding.encoder) {
-                Ok(data) => data,
-                Err(e) => {
-                    error!("Error encoding transaction: {:?}", e);
-                    return;
-                }
-            };
-
-            if let Err(err) = s.transport.broadcast(data).await {
-                error!("Error broadcasting transaction: {:?}", err);
-            }
-        });
         Ok(())
     }
 
@@ -150,11 +147,28 @@ impl Node {
             Message::Text(text) => {
                 debug!("Node={} received text={}", self.id, text);
             }
+            Message::Block(block) => {
+                if let Err(err) = self.process_block(block).await {
+                    error!("Error processing block: {:?}", err);
+                };
+            }
         }
     }
 
+    async fn process_block(&self, mut block: Block) -> Result<()> {
+        let block_hash = block.hash(self.config.block_hasher.clone()).await?;
+
+        info!("Node={} received block={}", self.id, block_hash);
+
+        // Check if we already have this block in our chain
+        Ok(())
+    }
+
     async fn process_transaction(&self, mut tx: Transaction) -> Result<()> {
-        let tx_hash = tx.hash(self.config.encoding.encoder.clone()).await?;
+        let tx_hash = tx.hash(self.config.tx_hasher.clone()).await?;
+
+        info!("Node={} received transaction={}", self.id, tx_hash);
+
         // Check if we already have this transaction in our pool
         if self.tx_pool.has_tx(&tx_hash).await {
             debug!("Node={} already has transaction={}", self.id, tx_hash);
@@ -168,11 +182,7 @@ impl Node {
         // Verify the transaction
         tx.verify()?;
 
-        if let Err(err) = self
-            .tx_pool
-            .add_tx(self.config.encoding.encoder.clone(), tx)
-            .await
-        {
+        if let Err(err) = self.tx_pool.add_tx(self.config.tx_hasher.clone(), tx).await {
             error!("could not add transaction to tx_pool: {:?}", err);
         }
 
@@ -207,17 +217,26 @@ pub async fn create_and_start_node(
         decoder: Box::new(JsonDecoder),
     };
 
+    // create blockchain config
+    let blockchain_config = BlockchainConfig {
+        genesis_block: create_genesis_block(),
+        storage: Box::new(MemStorage {}),
+    };
+
     let config = NodeConfig {
         encoding: encoding_config.clone(),
+        tx_hasher: Box::new(TxHasher),
+        block_hasher: Box::new(BlockHasher::new(encoding_config.encoder.clone())),
     };
 
     /*
         If the node is a validator we create a validator config which
         contains the private key of the validator
     */
-
-    let private_key = PrivateKey::generate();
-    let validator_config = ValidatorConfig::new(encoding_config, private_key, 5000);
+    let mut validator_config = None;
+    if let Some(private_key) = private_key {
+        validator_config = Some(ValidatorConfig::new(encoding_config, private_key, 5000));
+    }
 
     /*
         Now we create a new Node with the transport so that we can
@@ -228,7 +247,8 @@ pub async fn create_and_start_node(
         node_id.into(),
         Box::new(tr.clone()),
         config,
-        Some(validator_config),
+        blockchain_config,
+        validator_config,
     );
 
     /*

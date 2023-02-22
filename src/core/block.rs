@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{sync::RwLock, time::Instant};
 
-use super::{BlockHeader, BlockHeaderHasher, DynEncoder, Transaction, TxHasher};
+use super::{BlockHeader, DynEncoder, Hasher, Transaction, TxHasher};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
@@ -22,7 +22,7 @@ pub struct Block {
 
     #[serde(skip)]
     // we cache the hash of the transaction to avoid recomputing it
-    hash: Arc<RwLock<Option<MyHash>>>,
+    hash: Option<MyHash>,
 }
 
 #[typetag::serde]
@@ -33,7 +33,7 @@ impl Block {
         Block {
             header,
             transactions,
-            hash: Arc::new(RwLock::new(None)),
+            hash: None,
             validator: None,
             signature: None,
         }
@@ -41,6 +41,7 @@ impl Block {
 
     pub fn from_prev_header(
         prev_header: &BlockHeader,
+        header_hasher: &dyn Hasher<BlockHeader>,
         transactions: Vec<Transaction>,
         encoder: DynEncoder,
     ) -> Result<Self> {
@@ -48,26 +49,49 @@ impl Block {
             version: prev_header.version,
             height: prev_header.height + 1,
             timestamp: Instant::now().elapsed().as_nanos(),
-            data_hash: data_hash(&transactions, encoder.clone())?,
-            prev_block_hash: Some(
-                prev_header.hash(Box::new(BlockHeaderHasher::new(encoder.clone())))?,
-            ),
+            data_hash: data_hash(&transactions, &encoder)?,
+            prev_block_header_hash: Some(header_hasher.hash(prev_header)?),
         };
 
         Ok(Block::new(header, transactions))
     }
 
-    // pub fn hash(&self, encoder: &dyn Encoder) -> Result<MyHash> {
-    //     self.header.hash(encoder)
-    // }
+    pub async fn hash(&mut self, hasher: Box<dyn Hasher<Self>>) -> Result<MyHash> {
+        if let Some(hash) = self.hash {
+            Ok(hash)
+        } else {
+            let hash = hasher.hash(self)?;
+            self.hash = Some(hash);
+            Ok(hash)
+        }
+    }
+
+    pub fn encode(&self, encoder: &DynEncoder) -> Result<Vec<u8>> {
+        encoder.encode(self)
+    }
 }
 
-fn data_hash(transactions: &Vec<Transaction>, encoder: DynEncoder) -> Result<MyHash> {
+// hash all the transactions in the block
+fn data_hash(transactions: &[Transaction], encoder: &DynEncoder) -> Result<MyHash> {
     let mut buf: Vec<u8> = vec![];
     for tx in transactions.iter() {
-        let data = tx.encode(encoder.clone())?;
+        let data = tx.encode(encoder)?;
         buf.extend_from_slice(&data);
     }
     let hash = Sha256::digest(buf.as_slice());
     Ok(MyHash::from_bytes(hash.as_slice()))
+}
+
+// TODO: find a way to include a secret message in the block
+pub fn create_genesis_block() -> Block {
+    Block::new(
+        BlockHeader {
+            version: 1,
+            height: 0,
+            timestamp: tokio::time::Instant::now().elapsed().as_nanos(),
+            prev_block_header_hash: None,
+            data_hash: MyHash::zero(),
+        },
+        vec![],
+    )
 }
