@@ -1,4 +1,5 @@
 use anyhow::Result;
+use dyn_clone::DynClone;
 use std::{any::Any, fmt::Debug};
 
 #[typetag::serde(tag = "type")]
@@ -14,28 +15,11 @@ pub fn decode<T: Decodable + Clone + 'static>(decoder: Box<dyn Decoder>, data: &
 
 pub type DynDecoder = Box<dyn Decoder>;
 
-pub trait Decoder: DecoderClone + Debug + Send + Sync {
+pub trait Decoder: Debug + DynClone + Send + Sync {
     fn decode(&self, data: &[u8]) -> Result<Box<dyn Decodable>>;
 }
 
-pub trait DecoderClone {
-    fn clone_box(&self) -> Box<dyn Decoder>;
-}
-
-impl<T> DecoderClone for T
-where
-    T: 'static + Decoder + Clone,
-{
-    fn clone_box(&self) -> Box<dyn Decoder> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn Decoder> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
+dyn_clone::clone_trait_object!(Decoder);
 
 #[derive(Debug, Clone)]
 pub struct JsonDecoder;

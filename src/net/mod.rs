@@ -11,6 +11,6 @@ mod validator;
 
 pub use local_transport::LocalTransport;
 pub use network::Network;
-pub use node::{create_and_start_node, Node, NodeID};
+pub use node::{create_and_start_node, EncodingConfig, HasherConfig, Node, NodeID};
 pub use transport::{DynTransport, Transport};
 pub use tx_pool::TxPool;

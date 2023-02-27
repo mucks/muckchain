@@ -3,43 +3,25 @@ use std::fmt::Debug;
 use super::{Block, BlockHeader, DynEncoder, Transaction};
 use crate::model::MyHash;
 use anyhow::Result;
+use dyn_clone::DynClone;
 use sha2::{Digest, Sha256};
 
-pub trait Hasher<T>: HasherClone<T> + Debug + Send + Sync
+pub type DynHasher<T> = Box<dyn Hasher<T>>;
+
+pub trait Hasher<T>: Debug + DynClone + Send + Sync
 where
     T: Sized,
 {
     fn hash(&self, t: &T) -> Result<MyHash>;
 }
 
-pub trait HasherClone<U> {
-    fn clone_box(&self) -> Box<dyn Hasher<U>>;
-}
-
-impl<T, U> HasherClone<U> for T
-where
-    T: 'static + Hasher<T> + Clone + Hasher<U>,
-{
-    fn clone_box(&self) -> Box<dyn Hasher<U>> {
-        Box::new(self.clone())
-    }
-}
-
-impl<U> Clone for Box<dyn Hasher<U>> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
+dyn_clone::clone_trait_object!(Hasher<Transaction>);
+dyn_clone::clone_trait_object!(Hasher<Block>);
+dyn_clone::clone_trait_object!(Hasher<BlockHeader>);
 
 #[derive(Debug, Clone)]
 pub struct BlockHasher {
     enc: DynEncoder,
-}
-
-impl HasherClone<Block> for BlockHasher {
-    fn clone_box(&self) -> Box<dyn Hasher<Block>> {
-        Box::new(self.clone())
-    }
 }
 
 impl BlockHasher {
@@ -63,20 +45,9 @@ impl Hasher<BlockHeader> for BlockHasher {
         Ok(hash)
     }
 }
-impl HasherClone<BlockHeader> for BlockHasher {
-    fn clone_box(&self) -> Box<dyn Hasher<BlockHeader>> {
-        Box::new(self.clone())
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct TxHasher;
-
-impl HasherClone<Transaction> for TxHasher {
-    fn clone_box(&self) -> Box<dyn Hasher<Transaction>> {
-        Box::new(self.clone())
-    }
-}
 
 impl Hasher<Transaction> for TxHasher {
     // currently the encoder is not needed here as we only hash the transaction data

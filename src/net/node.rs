@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use crate::{
     core::{
-        create_genesis_block, Block, BlockHasher, BlockHeader, BlockchainConfig, DynDecoder,
-        DynEncoder, Hasher, MemStorage, TxHasher,
+        create_genesis_block, Block, BlockHasher, BlockHeader, BlockValidator, BlockchainConfig,
+        DefaultBlockValidator, DynDecoder, DynEncoder, DynHasher, Hasher, MemStorage, TxHasher,
     },
     model::MyHash,
 };
@@ -30,6 +30,12 @@ use crate::{
 pub type NodeID = String;
 
 #[derive(Debug, Clone)]
+pub struct HasherConfig {
+    pub tx_hasher: DynHasher<Transaction>,
+    pub block_hasher: DynHasher<Block>,
+}
+
+#[derive(Debug, Clone)]
 pub struct EncodingConfig {
     pub encoder: DynEncoder,
     pub decoder: DynDecoder,
@@ -38,8 +44,7 @@ pub struct EncodingConfig {
 #[derive(Debug, Clone)]
 pub struct NodeConfig {
     pub encoding: EncodingConfig,
-    pub tx_hasher: Box<dyn Hasher<Transaction>>,
-    pub block_hasher: Box<dyn Hasher<Block>>,
+    pub hashers: HasherConfig,
 }
 
 // Every value with state needs to be clonable in a way so that it can be moved to another thread
@@ -156,16 +161,18 @@ impl Node {
     }
 
     async fn process_block(&self, mut block: Block) -> Result<()> {
-        let block_hash = block.hash(self.config.block_hasher.clone()).await?;
+        let block_hash = block.hash(&self.config.hashers.block_hasher.clone())?;
 
         info!("Node={} received block={}", self.id, block_hash);
+
+        self.blockchain.add_block(block).await?;
 
         // Check if we already have this block in our chain
         Ok(())
     }
 
     async fn process_transaction(&self, mut tx: Transaction) -> Result<()> {
-        let tx_hash = tx.hash(self.config.tx_hasher.clone()).await?;
+        let tx_hash = tx.hash(self.config.hashers.tx_hasher.clone()).await?;
 
         info!("Node={} received transaction={}", self.id, tx_hash);
 
@@ -182,7 +189,11 @@ impl Node {
         // Verify the transaction
         tx.verify()?;
 
-        if let Err(err) = self.tx_pool.add_tx(self.config.tx_hasher.clone(), tx).await {
+        if let Err(err) = self
+            .tx_pool
+            .add_tx(self.config.hashers.tx_hasher.clone(), tx)
+            .await
+        {
             error!("could not add transaction to tx_pool: {:?}", err);
         }
 
@@ -217,16 +228,23 @@ pub async fn create_and_start_node(
         decoder: Box::new(JsonDecoder),
     };
 
-    // create blockchain config
-    let blockchain_config = BlockchainConfig {
-        genesis_block: create_genesis_block(),
-        storage: Box::new(MemStorage {}),
+    let hasher_config = HasherConfig {
+        tx_hasher: Box::new(TxHasher),
+        block_hasher: Box::new(BlockHasher::new(encoding_config.encoder.clone())),
     };
 
     let config = NodeConfig {
         encoding: encoding_config.clone(),
-        tx_hasher: Box::new(TxHasher),
-        block_hasher: Box::new(BlockHasher::new(encoding_config.encoder.clone())),
+        hashers: hasher_config.clone(),
+    };
+
+    // create blockchain config
+    let blockchain_config = BlockchainConfig {
+        genesis_block: create_genesis_block(&encoding_config.encoder)?,
+        storage: Box::new(MemStorage {}),
+        block_validator: Box::new(DefaultBlockValidator {}),
+        encoding: encoding_config.clone(),
+        hashers: hasher_config.clone(),
     };
 
     /*
@@ -235,7 +253,12 @@ pub async fn create_and_start_node(
     */
     let mut validator_config = None;
     if let Some(private_key) = private_key {
-        validator_config = Some(ValidatorConfig::new(encoding_config, private_key, 5000));
+        validator_config = Some(ValidatorConfig::new(
+            encoding_config,
+            hasher_config,
+            private_key,
+            5000,
+        ));
     }
 
     /*

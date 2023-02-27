@@ -4,31 +4,14 @@ use std::fmt::Debug;
 pub trait Encodable: Send + Sync {}
 
 use anyhow::Result;
+use dyn_clone::DynClone;
 
 pub type DynEncoder = Box<dyn Encoder>;
 
-pub trait Encoder: EncoderClone + Debug + Send + Sync {
+pub trait Encoder: Debug + DynClone + Send + Sync {
     fn encode(&self, val: &dyn Encodable) -> Result<Vec<u8>>;
 }
-
-pub trait EncoderClone {
-    fn clone_box(&self) -> Box<dyn Encoder>;
-}
-
-impl<T> EncoderClone for T
-where
-    T: 'static + Encoder + Clone,
-{
-    fn clone_box(&self) -> Box<dyn Encoder> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn Encoder> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
+dyn_clone::clone_trait_object!(Encoder);
 
 #[derive(Debug, Clone)]
 pub struct JsonEncoder;
