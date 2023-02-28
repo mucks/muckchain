@@ -37,7 +37,7 @@ impl Validator {
 
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(1000)).await;
-            msg_sender.broadcast_transaction_thread(tx);
+            msg_sender.broadcast_transaction_threaded(tx);
         });
     }
 
@@ -101,7 +101,7 @@ impl Validator {
         self.tx_pool.clear_pending().await;
 
         // Broadcast the new block to all the nodes in the network
-        self.msg_sender.broadcast_block_thread(block);
+        self.msg_sender.broadcast_block_threaded(block);
 
         Ok(())
     }

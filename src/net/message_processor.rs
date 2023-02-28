@@ -1,5 +1,5 @@
 use super::{message::Message, message_sender::MessageSender, TxPool};
-use crate::{config::HasherConfig, prelude::*};
+use crate::{config::HasherConfig, net::Status, prelude::*};
 
 #[derive(Debug, Clone)]
 pub struct MessageProcessor {
@@ -27,13 +27,26 @@ impl MessageProcessor {
         }
     }
 
-    pub async fn process_message(&self, msg: Message) -> Result<()> {
+    pub async fn process_message(&self, from: NetAddr, msg: Message) -> Result<()> {
         match msg {
             Message::Transaction(tx) => self.process_transaction(tx).await?,
             Message::Block(block) => self.process_block(block).await?,
             // TODO: this was added for debug purposes, maybe remove it
             Message::Text(text) => {
                 debug!("Node={} received text={}", self.node_id, text);
+            }
+            // Get Status Request from a peer, send back our status
+            Message::GetStatus => {
+                debug!("Node={} received GetStatus", self.node_id);
+                let height = self.blockchain.height().await;
+                let status = Status {
+                    id: self.node_id.clone(),
+                    height,
+                };
+                self.sender.send_status_threaded(from, status);
+            }
+            Message::Status(status) => {
+                debug!("Node={} received Status={:?}", self.node_id, status);
             }
         }
         Ok(())
@@ -46,7 +59,7 @@ impl MessageProcessor {
 
         self.blockchain.add_block(block.clone()).await?;
 
-        self.sender.broadcast_block_thread(block);
+        self.sender.broadcast_block_threaded(block);
 
         // Check if we already have this block in our chain
         Ok(())
@@ -78,7 +91,7 @@ impl MessageProcessor {
             error!("could not add transaction to tx_pool: {:?}", err);
         }
 
-        self.sender.broadcast_transaction_thread(tx);
+        self.sender.broadcast_transaction_threaded(tx);
 
         Ok(())
     }

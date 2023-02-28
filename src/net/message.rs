@@ -1,11 +1,5 @@
-use std::sync::{Arc, Mutex};
-
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
-
-use crate::core::{decode, Block, Decodable, DynDecoder, DynEncoder, Encodable, Transaction};
-
-use super::rpc::RPC;
+use super::{rpc::RPC, Status};
+use crate::{core::decode, prelude::*};
 
 //TODO: handle the the large size difference in this enum
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,6 +7,8 @@ pub enum Message {
     Transaction(Transaction),
     Text(String),
     Block(Block),
+    GetStatus,
+    Status(Status),
 }
 
 #[typetag::serde]

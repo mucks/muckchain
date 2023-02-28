@@ -1,12 +1,8 @@
 use crate::config::{Config, NodeConfig, ValidatorConfig};
+use crate::core::BlockchainConfig;
 use crate::crypto::PrivateKey;
 use crate::net::message::Message;
 use crate::prelude::*;
-
-use crate::core::{
-    create_genesis_block, BlockHasher, BlockchainConfig, DefaultBlockValidator, MemStorage,
-    TxHasher,
-};
 
 use super::validator::Validator;
 use super::DynTransport;
@@ -91,10 +87,14 @@ impl Node {
         self.transport.addr()
     }
 
+    // START
     pub async fn start(&mut self) -> Result<()> {
         if let Some(validator) = &self.validator {
             validator.start_thread();
         }
+
+        // Send a get_blockchain_status message to all nodes
+        self.msg_sender.broadcast_get_blockchain_status_threaded();
 
         // let msg = Message::Text("hello".into());
 
@@ -121,7 +121,7 @@ impl Node {
                     }
                 };
 
-                if let Err(err) = self.msg_processor.process_message(msg).await {
+                if let Err(err) = self.msg_processor.process_message(rpc.from, msg).await {
                     error!("Node={} Error processing message: {:?}", self.id, err);
                 }
             }
