@@ -64,6 +64,7 @@ impl Blockchain {
         self.block_headers.read().await.len() as u32 - 1
     }
 
+    // Get the previous block header
     pub async fn get_prev_header(&self, height: u32) -> Option<BlockHeader> {
         if height == 0 {
             self.get_header(0).await

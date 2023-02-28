@@ -154,7 +154,7 @@ impl Node {
             }
             Message::Block(block) => {
                 if let Err(err) = self.process_block(block).await {
-                    error!("Error processing block: {:?}", err);
+                    error!("Node={} Error processing block: {:?}", self.id, err);
                 };
             }
         }
@@ -240,7 +240,7 @@ pub async fn create_and_start_node(
 
     // create blockchain config
     let blockchain_config = BlockchainConfig {
-        genesis_block: create_genesis_block(&encoding_config.encoder)?,
+        genesis_block: create_genesis_block(),
         storage: Box::new(MemStorage {}),
         block_validator: Box::new(DefaultBlockValidator {}),
         encoding: encoding_config.clone(),

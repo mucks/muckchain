@@ -28,24 +28,18 @@ pub struct Block {
 impl Encodable for Block {}
 
 impl Block {
-    pub fn new(
-        header: BlockHeader,
-        transactions: Vec<Transaction>,
-        enc: &DynEncoder,
-    ) -> Result<Self> {
-        let mut b = Block {
+    pub fn new(header: BlockHeader, transactions: Vec<Transaction>) -> Self {
+        Block {
             header,
             transactions,
             hash: None,
             validator_public_key: None,
             signature: None,
-        };
-        let data_hash = data_hash(&b.transactions, enc)?;
-        b.header.data_hash = data_hash;
-        Ok(b)
+        }
     }
 
-    pub fn hash_from_header(header: &BlockHeader, hasher: &DynHasher<Block>) -> Result<MyHash> {
+    // only hashes the header and ignores the fields on public key
+    pub fn hash_header(header: &BlockHeader, hasher: &DynHasher<Block>) -> Result<MyHash> {
         let mut b = Block {
             header: header.clone(),
             transactions: vec![],
@@ -54,7 +48,7 @@ impl Block {
             signature: None,
         };
 
-        b.hash(&hasher)
+        b.hash(hasher)
     }
 
     // Create a new block based on the previous block header
@@ -64,15 +58,17 @@ impl Block {
         encoder: &DynEncoder,
         hasher: &DynHasher<Self>,
     ) -> Result<Self> {
+        let data_hash = data_hash(&transactions, encoder)?;
+
         let header = BlockHeader {
             version: prev_header.version,
             height: prev_header.height + 1,
             timestamp: Instant::now().elapsed().as_nanos(),
-            data_hash: data_hash(&transactions, encoder)?,
-            prev_block_header_hash: Some(Block::hash_from_header(prev_header, hasher)?),
+            data_hash,
+            prev_block_header_hash: Some(Block::hash_header(prev_header, hasher)?),
         };
 
-        Block::new(header, transactions, encoder)
+        Ok(Block::new(header, transactions))
     }
 
     pub fn hash(&mut self, hasher: &DynHasher<Self>) -> Result<MyHash> {
@@ -149,17 +145,16 @@ pub fn data_hash(transactions: &[Transaction], encoder: &DynEncoder) -> Result<M
 }
 
 // TODO: find a way to include a secret message in the block
-pub fn create_genesis_block(enc: &DynEncoder) -> Result<Block> {
+pub fn create_genesis_block() -> Block {
     Block::new(
         BlockHeader {
             version: 1,
             height: 0,
-            timestamp: tokio::time::Instant::now().elapsed().as_nanos(),
+            timestamp: 0,
             prev_block_header_hash: None,
             data_hash: MyHash::zero(),
         },
         vec![],
-        enc,
     )
 }
 

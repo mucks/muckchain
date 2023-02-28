@@ -1,4 +1,3 @@
-use super::Hasher;
 use super::{Block, Blockchain, DynHasher};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -43,15 +42,23 @@ impl BlockValidator for DefaultBlockValidator {
 
         // Check if block is valid
 
+        // Get previous block header
         let prev_header = bc
             .get_prev_header(block.header.height)
             .await
             .ok_or_else(|| anyhow!("bc (height:{bc_height}) has no previous block!"))?;
 
-        let prev_header_hash = Block::hash_from_header(&prev_header, hasher)?;
+        // Hash the previous block header
+        let bc_prev_header_hash = Block::hash_header(&prev_header, hasher)?;
+        let block_prev_header_hash = block.header.prev_block_header_hash;
 
-        if block.header.prev_block_header_hash != Some(prev_header_hash) {
-            return Err(anyhow!("invalid block"));
+        // Check if the previous block header hash is correct
+        if Some(bc_prev_header_hash) != block_prev_header_hash {
+            return Err(anyhow!(
+                "invalid block: {} != {:?}",
+                bc_prev_header_hash,
+                block_prev_header_hash
+            ));
         }
 
         block.verify(&bc.config.encoding.encoder)?;

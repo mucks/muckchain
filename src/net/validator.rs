@@ -101,11 +101,12 @@ impl Validator {
         let bc_height = self.blockchain.height().await;
 
         // Get the current header
+        // The new block will be created from this header
         let current_header = self
             .blockchain
             .get_header(bc_height)
             .await
-            .ok_or_else(|| anyhow!("No previous block header found"))?;
+            .ok_or_else(|| anyhow!("No header found"))?;
 
         // Gather all pending transactions
         let pending_txs = self.tx_pool.pending().await?;

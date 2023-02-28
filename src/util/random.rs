@@ -32,7 +32,10 @@ pub fn random_block(
         data_hash: MyHash::zero(),
     };
 
-    Block::new(header, vec![], enc)
+    let mut b = Block::new(header, vec![]);
+    b.header.data_hash = data_hash(&b.transactions, enc)?;
+    b.sign(&private_key, enc)?;
+    Ok(b)
 }
 
 pub fn random_block_with_signature(
