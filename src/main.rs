@@ -1,12 +1,12 @@
+mod config;
 mod core;
 mod crypto;
-mod model;
 mod net;
 mod util;
 
 use anyhow::Result;
 use crypto::PrivateKey;
-use net::{create_and_start_node, LocalTransport, Network, Node, NodeID, Transport};
+use net::{create_and_start_node, Network};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -36,4 +36,17 @@ async fn add_late_node(network: Network) -> Result<()> {
             .unwrap();
     });
     Ok(())
+}
+
+pub mod prelude {
+    pub use crate::core::{
+        Block, BlockHeader, Blockchain, Decodable, DynDecoder, DynEncoder, DynHasher, Encodable,
+        Hash, Hasher, Transaction,
+    };
+    pub use crate::net::{NetAddr, NodeID};
+    pub use anyhow::{anyhow, Result};
+    pub use async_trait::async_trait;
+    pub use log::{debug, error, info, trace, warn};
+    pub use serde::{Deserialize, Serialize};
+    pub use tokio::time::{sleep, Duration, Instant};
 }

@@ -4,12 +4,13 @@ use super::{
 };
 use anyhow::Result;
 use async_trait::async_trait;
+use dyn_clone::DynClone;
 use std::fmt::Debug;
 
 pub type DynTransport = Box<dyn Transport>;
 
 #[async_trait]
-pub trait Transport: TransportClone + Send + Sync + Debug {
+pub trait Transport: Send + Sync + Debug + DynClone {
     async fn broadcast(&self, data: Vec<u8>) -> Result<()>;
     async fn send(&self, to: &NetAddr, data: Vec<u8>) -> Result<()>;
     async fn connect(&self, tr: Box<dyn Transport>) -> Result<()>;
@@ -18,21 +19,4 @@ pub trait Transport: TransportClone + Send + Sync + Debug {
     async fn recv(&self) -> Option<RPC>;
 }
 
-pub trait TransportClone {
-    fn clone_box(&self) -> Box<dyn Transport>;
-}
-
-impl<T> TransportClone for T
-where
-    T: 'static + Transport + Clone,
-{
-    fn clone_box(&self) -> Box<dyn Transport> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn Transport> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
+dyn_clone::clone_trait_object!(Transport);

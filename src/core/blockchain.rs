@@ -1,12 +1,9 @@
 use crate::{
-    model::MyHash,
-    net::{EncodingConfig, HasherConfig},
+    config::{EncodingConfig, HasherConfig},
+    prelude::*,
 };
 
-use super::{
-    block_header::BlockHeader, Block, DynBlockValidator, DynEncoder, DynHasher, DynStorage, Hasher,
-};
-use anyhow::{anyhow, Result};
+use super::{block_header::BlockHeader, Block, DynBlockValidator, DynStorage};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -73,7 +70,7 @@ impl Blockchain {
         }
     }
 
-    // pub async fn get_prev_header_hash(&self, height: u32) -> Result<MyHash> {
+    // pub async fn get_prev_header_hash(&self, height: u32) -> Result<Hash> {
     //     let prev_header = self.get_prev_header(height).await.ok_or_else(|| {
     //         anyhow!(
     //             "could not get previous block header for block_height: {}",
@@ -87,7 +84,7 @@ impl Blockchain {
     //     &self,
     //     hasher: &dyn Hasher<BlockHeader>,
     //     height: u32,
-    // ) -> Result<MyHash> {
+    // ) -> Result<Hash> {
     //     let prev_header = self.get_prev_header(height).await.ok_or_else(|| {
     //         anyhow!(
     //             "could not get previous block header for block_height: {}",

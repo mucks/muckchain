@@ -1,39 +1,6 @@
-use crate::{
-    core::{Block, Blockchain, DynDecoder, DynEncoder, Transaction},
-    crypto::PrivateKey,
-};
+use crate::{config::ValidatorConfig, prelude::*};
 
-use super::{
-    message_sender::MessageSender, node::EncodingConfig, DynTransport, HasherConfig, TxPool,
-};
-use anyhow::{anyhow, Result};
-use log::{error, info};
-use std::time::Duration;
-use tokio::time::sleep;
-
-#[derive(Debug, Clone)]
-pub struct ValidatorConfig {
-    private_key: PrivateKey,
-    block_time_ms: u64,
-    encoding: EncodingConfig,
-    hashers: HasherConfig,
-}
-
-impl ValidatorConfig {
-    pub fn new(
-        encoding: EncodingConfig,
-        hashers: HasherConfig,
-        private_key: PrivateKey,
-        block_time_ms: u64,
-    ) -> Self {
-        Self {
-            private_key,
-            block_time_ms,
-            encoding,
-            hashers,
-        }
-    }
-}
+use super::{message_sender::MessageSender, DynTransport, TxPool};
 
 #[derive(Debug, Clone)]
 pub struct Validator {

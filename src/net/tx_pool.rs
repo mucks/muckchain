@@ -6,17 +6,16 @@
 
 */
 
-use crate::core::{DynEncoder, Encoder, Hasher, Transaction};
-use crate::model::MyHash;
-use anyhow::{anyhow, Result};
-use log::debug;
 use std::{collections::HashMap, sync::Arc};
+
 use tokio::sync::RwLock;
+
+use crate::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct TxPool {
-    all_txs: Arc<RwLock<HashMap<MyHash, Transaction>>>,
-    pending_txs: Arc<RwLock<HashMap<MyHash, Transaction>>>,
+    all_txs: Arc<RwLock<HashMap<Hash, Transaction>>>,
+    pending_txs: Arc<RwLock<HashMap<Hash, Transaction>>>,
 }
 
 impl TxPool {
@@ -52,7 +51,7 @@ impl TxPool {
         Ok(txs)
     }
 
-    pub async fn has_tx(&self, tx_hash: &MyHash) -> bool {
+    pub async fn has_tx(&self, tx_hash: &Hash) -> bool {
         self.all_txs.read().await.contains_key(tx_hash)
     }
 

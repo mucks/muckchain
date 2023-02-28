@@ -1,14 +1,7 @@
-use crate::{
-    core::Encodable,
-    crypto::{PrivateKey, PublicKey, Signature},
-    model::MyHash,
-};
-use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
+use crate::crypto::{PrivateKey, PublicKey, Signature};
+use crate::prelude::*;
 use sha2::{Digest, Sha256};
 use tokio::time::Instant;
-
-use super::{BlockHeader, DynEncoder, DynHasher, Hasher, Transaction, TxHasher};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
@@ -21,7 +14,7 @@ pub struct Block {
 
     #[serde(skip)]
     // we cache the hash of the transaction to avoid recomputing it
-    hash: Option<MyHash>,
+    hash: Option<Hash>,
 }
 
 #[typetag::serde]
@@ -39,7 +32,7 @@ impl Block {
     }
 
     // only hashes the header and ignores the fields on public key
-    pub fn hash_header(header: &BlockHeader, hasher: &DynHasher<Block>) -> Result<MyHash> {
+    pub fn hash_header(header: &BlockHeader, hasher: &DynHasher<Block>) -> Result<Hash> {
         let mut b = Block {
             header: header.clone(),
             transactions: vec![],
@@ -71,7 +64,7 @@ impl Block {
         Ok(Block::new(header, transactions))
     }
 
-    pub fn hash(&mut self, hasher: &DynHasher<Self>) -> Result<MyHash> {
+    pub fn hash(&mut self, hasher: &DynHasher<Self>) -> Result<Hash> {
         if let Some(hash) = self.hash {
             Ok(hash)
         } else {
@@ -134,14 +127,14 @@ impl Block {
 }
 
 // hash all the transactions in the block
-pub fn data_hash(transactions: &[Transaction], encoder: &DynEncoder) -> Result<MyHash> {
+pub fn data_hash(transactions: &[Transaction], encoder: &DynEncoder) -> Result<Hash> {
     let mut buf: Vec<u8> = vec![];
     for tx in transactions.iter() {
         let data = tx.encode(encoder)?;
         buf.extend_from_slice(&data);
     }
     let hash = Sha256::digest(buf.as_slice());
-    Ok(MyHash::from_bytes(hash.as_slice()))
+    Ok(Hash::from_bytes(hash.as_slice()))
 }
 
 // TODO: find a way to include a secret message in the block
@@ -152,7 +145,7 @@ pub fn create_genesis_block() -> Block {
             height: 0,
             timestamp: 0,
             prev_block_header_hash: None,
-            data_hash: MyHash::zero(),
+            data_hash: Hash::zero(),
         },
         vec![],
     )
@@ -178,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_hash_block() -> Result<()> {
-        let mut block = random_block(0, MyHash::zero(), &encoder())?;
+        let mut block = random_block(0, Hash::zero(), &encoder())?;
         let hash = block.hash(&block_hasher())?;
         println!("hash: {hash}");
         Ok(())
@@ -187,7 +180,7 @@ mod tests {
     #[test]
     fn test_sign_block() -> Result<()> {
         let private_key = PrivateKey::generate();
-        let mut b = random_block(0, MyHash::zero(), &encoder())?;
+        let mut b = random_block(0, Hash::zero(), &encoder())?;
         b.sign(&private_key, &encoder())?;
         assert!(b.signature.is_some());
 
@@ -198,7 +191,7 @@ mod tests {
     fn test_verify_block() -> Result<()> {
         let enc = encoder();
         let private_key = PrivateKey::generate();
-        let mut b = random_block(0, MyHash::zero(), &enc)?;
+        let mut b = random_block(0, Hash::zero(), &enc)?;
         b.sign(&private_key, &enc)?;
         b.verify(&enc)?;
 

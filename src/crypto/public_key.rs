@@ -2,7 +2,7 @@ use p256::ecdsa::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 
-use crate::model::Address;
+use crate::core::Address;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct PublicKey {

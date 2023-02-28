@@ -1,16 +1,6 @@
-use std::sync::Arc;
+use crate::prelude::*;
 
-use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
-
-use crate::{
-    core::Encodable,
-    crypto::{PrivateKey, PublicKey, Signature},
-    model::MyHash,
-};
-
-use super::{Decodable, DynEncoder, Hasher, TxHasher};
+use crate::crypto::{PrivateKey, PublicKey, Signature};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Transaction {
@@ -21,7 +11,7 @@ pub struct Transaction {
 
     // we cache the hash of the transaction to avoid recomputing it
     #[serde(skip)]
-    hash: Option<MyHash>,
+    hash: Option<Hash>,
     #[serde(skip)]
     first_seen: u128,
 }
@@ -84,7 +74,7 @@ impl Transaction {
         self.first_seen = first_seen;
     }
 
-    pub async fn hash(&mut self, hasher: Box<dyn Hasher<Self>>) -> Result<MyHash> {
+    pub async fn hash(&mut self, hasher: Box<dyn Hasher<Self>>) -> Result<Hash> {
         if let Some(hash) = self.hash {
             Ok(hash)
         } else {
