@@ -1,7 +1,10 @@
 use crate::{
     core::{
-        create_genesis_block, BlockHasher, BlockchainConfig, DefaultBlockValidator,
-        DynBlockValidator, DynStorage, JsonDecoder, JsonEncoder, MemStorage, TxHasher,
+        create_genesis_block,
+        encoding::{json_decoder::JsonDecoder, json_encoder::JsonEncoder},
+        mem_storage::MemStorage,
+        BlockHasher, BlockchainConfig, DefaultBlockValidator, DynBlockValidator, DynStorage,
+        TxHasher,
     },
     crypto::PrivateKey,
     prelude::*,
@@ -29,7 +32,7 @@ impl Default for Config {
             block_hasher: Box::new(BlockHasher::new(encoding.encoder.clone())),
         };
 
-        let storage = Box::new(MemStorage {});
+        let storage = Box::new(MemStorage::new());
         let block_validator = Box::new(DefaultBlockValidator {});
         let genesis_block = create_genesis_block();
         let block_time_ms = 1000;

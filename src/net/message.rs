@@ -1,5 +1,6 @@
-use super::{rpc::RPC, Status};
-use crate::{core::decode, prelude::*};
+use super::rpc::RPC;
+use crate::prelude::*;
+use std::ops::Range;
 
 //TODO: handle the the large size difference in this enum
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -9,6 +10,8 @@ pub enum Message {
     Block(Block),
     GetStatus,
     Status(Status),
+    GetBlocks(Range<u32>),
+    Blocks(Vec<Block>),
 }
 
 #[typetag::serde]
@@ -21,7 +24,7 @@ impl Decodable for Message {
 impl Encodable for Message {}
 
 impl Message {
-    pub fn from_rpc(decoder: DynDecoder, rpc: &RPC) -> Result<Self> {
+    pub fn from_rpc(decoder: &DynDecoder, rpc: &RPC) -> Result<Self> {
         let msg = decode(decoder, &rpc.data)?;
         Ok(msg)
     }
@@ -29,3 +32,12 @@ impl Message {
         encoder.encode(self)
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Status {
+    pub id: String,
+    pub height: u32,
+}
+
+#[typetag::serde]
+impl Encodable for Status {}

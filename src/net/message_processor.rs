@@ -47,6 +47,40 @@ impl MessageProcessor {
             }
             Message::Status(status) => {
                 debug!("Node={} received Status={:?}", self.node_id, status);
+                self.proces_status(from, status).await?;
+            }
+            Message::GetBlocks(range) => {
+                debug!("Node={} received GetBlocks={:?}", self.node_id, range);
+                let blocks = self.blockchain.get_blocks(range).await?;
+                self.sender.send_blocks_threaded(from, blocks);
+            }
+            Message::Blocks(blocks) => {
+                debug!("Node={} received Blocks={:?}", self.node_id, blocks);
+                self.process_blocks(blocks).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn proces_status(&self, from: NetAddr, status: Status) -> Result<()> {
+        let height = self.blockchain.height().await;
+
+        if height < status.height {
+            debug!("Node={} requesting blocks", self.node_id);
+
+            // TODO: this is a hack, we should be able to request a range of blocks
+            let len = status.height + 1;
+
+            self.sender.send_get_blocks_threaded(from, height..len);
+        }
+        Ok(())
+    }
+
+    async fn process_blocks(&self, blocks: Vec<Block>) -> Result<()> {
+        for block in blocks {
+            if let Err(_err) = self.blockchain.add_block(block).await {
+                // TODO: handle error
+                // debug!("Error processing block: {:?}", err);
             }
         }
         Ok(())

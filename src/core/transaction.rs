@@ -10,7 +10,7 @@ pub struct Transaction {
     signature: Option<Signature>,
 
     // we cache the hash of the transaction to avoid recomputing it
-    #[serde(skip)]
+    // #[serde(skip)]
     hash: Option<Hash>,
     #[serde(skip)]
     first_seen: u128,

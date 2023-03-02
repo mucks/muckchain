@@ -1,4 +1,4 @@
-use super::{Block, Blockchain, DynHasher};
+use super::{Block, Blockchain, DynHasher, McError};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use dyn_clone::DynClone;
@@ -31,13 +31,17 @@ impl BlockValidator for DefaultBlockValidator {
         // Check if block already exists
         if bc.has_block(block.header.height).await {
             let hash = block.hash(hasher)?;
-            return Err(anyhow::anyhow!("block {hash} already exists"));
+            Err(McError::BlockAlreadyExists(hash))?;
         }
 
         // Check if block height is too high
         let bc_height = bc.height().await;
         if block.header.height != bc_height + 1 {
-            return Err(anyhow!("block height {} is too high", block.header.height));
+            return Err(anyhow!(
+                "local_height: {} remote_height {} is too high",
+                bc_height,
+                block.header.height
+            ));
         }
 
         // Check if block is valid

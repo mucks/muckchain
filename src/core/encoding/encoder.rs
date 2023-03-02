@@ -12,13 +12,3 @@ pub trait Encoder: Debug + DynClone + Send + Sync {
     fn encode(&self, val: &dyn Encodable) -> Result<Vec<u8>>;
 }
 dyn_clone::clone_trait_object!(Encoder);
-
-#[derive(Debug, Clone)]
-pub struct JsonEncoder;
-
-impl Encoder for JsonEncoder {
-    fn encode(&self, val: &dyn Encodable) -> Result<Vec<u8>> {
-        let bytes = serde_json::to_vec(val)?;
-        Ok(bytes)
-    }
-}

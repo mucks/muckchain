@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
 
 async fn add_late_node(network: Network) -> Result<()> {
     tokio::spawn(async move {
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_secs(5)).await;
         let late = create_and_start_node(network, "LATE_NODE", "TR_LATE", None)
             .await
             .unwrap();
@@ -40,7 +40,7 @@ async fn add_late_node(network: Network) -> Result<()> {
 
 pub mod prelude {
     pub use crate::core::{
-        Block, BlockHeader, Blockchain, Decodable, DynDecoder, DynEncoder, DynHasher, Encodable,
+        encoding::decoder::*, encoding::encoder::*, Block, BlockHeader, Blockchain, DynHasher,
         Hash, Hasher, Transaction,
     };
     pub use crate::net::{NetAddr, NodeID};

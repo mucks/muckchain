@@ -6,15 +6,14 @@ mod net_addr;
 mod network;
 mod node;
 mod rpc;
-mod status;
 mod transport;
 mod tx_pool;
 mod validator;
 
 pub use local_transport::LocalTransport;
+pub use message::*;
 pub use net_addr::NetAddr;
 pub use network::Network;
 pub use node::{create_and_start_node, Node, NodeID};
-pub use status::Status;
 pub use transport::{DynTransport, Transport};
 pub use tx_pool::TxPool;

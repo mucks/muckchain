@@ -1,5 +1,5 @@
 use crate::config::{Config, NodeConfig, ValidatorConfig};
-use crate::core::BlockchainConfig;
+use crate::core::{BlockchainConfig, McError};
 use crate::crypto::PrivateKey;
 use crate::net::message::Message;
 use crate::prelude::*;
@@ -31,14 +31,14 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn new(
+    pub async fn new(
         id: String,
         transport: DynTransport,
         config: NodeConfig,
         blockchain_config: BlockchainConfig,
         validator_config: Option<ValidatorConfig>,
-    ) -> Self {
-        let blockchain = Blockchain::new(blockchain_config);
+    ) -> Result<Self> {
+        let blockchain = Blockchain::new(blockchain_config).await?;
         let tx_pool = TxPool::new();
 
         let msg_sender = MessageSender::new(transport.clone(), config.encoding.encoder.clone());
@@ -72,7 +72,8 @@ impl Node {
                 msg_sender,
             ));
         }
-        node
+
+        Ok(node)
     }
 
     pub fn channel(&self) -> Channel {
@@ -93,7 +94,7 @@ impl Node {
             validator.start_thread();
         }
 
-        // Send a get_blockchain_status message to all nodes
+        //Send a get_blockchain_status message to all nodes
         self.msg_sender.broadcast_get_blockchain_status_threaded();
 
         // let msg = Message::Text("hello".into());
@@ -113,7 +114,7 @@ impl Node {
                 debug!("Node={} received RPC from={}", self.id, rpc.from);
 
                 // Decode the message
-                let msg = match Message::from_rpc(self.config.encoding.decoder.clone(), &rpc) {
+                let msg = match Message::from_rpc(&self.config.encoding.decoder, &rpc) {
                     Ok(msg) => msg,
                     Err(e) => {
                         error!("Error decoding message: {:?}", e);
@@ -122,7 +123,14 @@ impl Node {
                 };
 
                 if let Err(err) = self.msg_processor.process_message(rpc.from, msg).await {
-                    error!("Node={} Error processing message: {:?}", self.id, err);
+                    if let Some(mc_err) = err.downcast_ref::<McError>() {
+                        match mc_err {
+                            // Don't print an error if the block already exists
+                            McError::BlockAlreadyExists(_) => {}
+                        }
+                    } else {
+                        error!("Node={} Error processing message: {:?}", self.id, err);
+                    }
                 }
             }
         }
@@ -173,7 +181,8 @@ pub async fn create_and_start_node(
         config.node_config(),
         config.blockchain_config(),
         validator_config,
-    );
+    )
+    .await?;
 
     /*
         After the creation we add the nodes rpc_channel to the network

@@ -7,7 +7,10 @@ pub trait Decodable: Send + Sync {
     fn as_any(&self) -> &dyn Any;
 }
 
-pub fn decode<T: Decodable + Clone + 'static>(decoder: Box<dyn Decoder>, data: &[u8]) -> Result<T> {
+pub fn decode<T: Decodable + Clone + 'static>(
+    decoder: &Box<dyn Decoder>,
+    data: &[u8],
+) -> Result<T> {
     let decodable: Box<dyn Decodable> = decoder.decode(data)?;
     let decodable = decodable.as_any().downcast_ref::<T>().unwrap();
     Ok(decodable.clone())
@@ -20,12 +23,3 @@ pub trait Decoder: Debug + DynClone + Send + Sync {
 }
 
 dyn_clone::clone_trait_object!(Decoder);
-
-#[derive(Debug, Clone)]
-pub struct JsonDecoder;
-
-impl Decoder for JsonDecoder {
-    fn decode(&self, data: &[u8]) -> Result<Box<dyn Decodable>> {
-        Ok(serde_json::from_slice(data)?)
-    }
-}

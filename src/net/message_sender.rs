@@ -1,8 +1,7 @@
-use log::error;
+use std::ops::Range;
 
-use super::{message::Message, DynTransport, NetAddr, Status};
-use crate::core::{Block, DynEncoder, Transaction};
-use anyhow::Result;
+use super::{DynTransport, Message, Status};
+use crate::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct MessageSender {
@@ -22,6 +21,16 @@ impl MessageSender {
         self.send_threaded(to, msg);
     }
 
+    pub fn send_get_blocks_threaded(&self, to: NetAddr, range: Range<u32>) {
+        let msg = Message::GetBlocks(range);
+        self.send_threaded(to, msg);
+    }
+
+    pub fn send_blocks_threaded(&self, to: NetAddr, blocks: Vec<Block>) {
+        let msg = Message::Blocks(blocks);
+        self.send_threaded(to, msg);
+    }
+
     pub fn broadcast_get_blockchain_status_threaded(&self) {
         let msg = Message::GetStatus;
         self.broadcast_threaded(msg);
@@ -38,12 +47,12 @@ impl MessageSender {
     }
 
     // Core function to send a message to a node
-    pub async fn send(&self, to: &NetAddr, msg: Message) -> Result<()> {
+    async fn send(&self, to: &NetAddr, msg: Message) -> Result<()> {
         self.transport.send(to, msg.bytes(&self.encoder)?).await?;
         Ok(())
     }
 
-    pub fn send_threaded(&self, to: NetAddr, msg: Message) {
+    fn send_threaded(&self, to: NetAddr, msg: Message) {
         let s = self.clone();
         tokio::spawn(async move {
             if let Err(err) = s.send(&to, msg).await {

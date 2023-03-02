@@ -12,13 +12,20 @@ pub struct Block {
     pub validator_public_key: Option<PublicKey>,
     pub signature: Option<Signature>,
 
-    #[serde(skip)]
     // we cache the hash of the transaction to avoid recomputing it
+    // #[serde(skip)]
     hash: Option<Hash>,
 }
 
 #[typetag::serde]
 impl Encodable for Block {}
+
+#[typetag::serde]
+impl Decodable for Block {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
 
 impl Block {
     pub fn new(header: BlockHeader, transactions: Vec<Transaction>) -> Self {
@@ -124,6 +131,10 @@ impl Block {
     pub fn encode(&self, encoder: &DynEncoder) -> Result<Vec<u8>> {
         encoder.encode(self)
     }
+
+    pub fn decode(data: &[u8], decoder: &DynDecoder) -> Result<Self> {
+        decode(decoder, data)
+    }
 }
 
 // hash all the transactions in the block
@@ -155,7 +166,7 @@ pub fn create_genesis_block() -> Block {
 mod tests {
     use super::*;
     use crate::{
-        core::{hasher::BlockHasher, JsonEncoder},
+        core::{encoding::json_encoder::JsonEncoder, hasher::BlockHasher},
         util::random_block,
     };
 
