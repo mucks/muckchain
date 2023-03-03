@@ -68,7 +68,7 @@ impl MessageProcessor {
         if height < status.height {
             debug!("Node={} requesting blocks", self.node_id);
 
-            // TODO: this is a hack, we should be able to request a range of blocks
+            // TODO: this is hack, we should be able to request a range of blocks
             let len = status.height + 1;
 
             self.sender.send_get_blocks_threaded(from, height..len);

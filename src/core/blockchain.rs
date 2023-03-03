@@ -3,7 +3,10 @@ use crate::{
     prelude::*,
 };
 
-use super::{block_header::BlockHeader, Block, DynBlockValidator, DynStorage};
+use super::{
+    block_header::BlockHeader, state::DynState, storage::DynStorage, vm::DynVM, Block,
+    DynBlockValidator,
+};
 use std::{ops::Range, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -14,6 +17,8 @@ pub struct BlockchainConfig {
     pub block_validator: DynBlockValidator,
     pub hashers: HasherConfig,
     pub encoding: EncodingConfig,
+    pub vm: DynVM,
+    pub state: DynState,
 }
 
 #[derive(Debug, Clone)]

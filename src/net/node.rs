@@ -94,8 +94,8 @@ impl Node {
             validator.start_thread();
         }
 
-        //Send a get_blockchain_status message to all nodes
-        self.msg_sender.broadcast_get_blockchain_status_threaded();
+        //Send a get status message to all nodes
+        self.msg_sender.broadcast_get_status_threaded();
 
         // let msg = Message::Text("hello".into());
 

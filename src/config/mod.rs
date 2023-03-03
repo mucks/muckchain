@@ -2,9 +2,11 @@ use crate::{
     core::{
         create_genesis_block,
         encoding::{json_decoder::JsonDecoder, json_encoder::JsonEncoder},
-        mem_storage::MemStorage,
-        BlockHasher, BlockchainConfig, DefaultBlockValidator, DynBlockValidator, DynStorage,
-        TxHasher,
+        state::contract_state::ContractState,
+        storage::mem_storage::MemStorage,
+        storage::DynStorage,
+        vm::bytecode_vm::BytecodeVM,
+        BlockHasher, BlockchainConfig, DefaultBlockValidator, DynBlockValidator, TxHasher,
     },
     crypto::PrivateKey,
     prelude::*,
@@ -63,6 +65,8 @@ impl Config {
             storage: self.storage.clone(),
             block_validator: self.block_validator.clone(),
             genesis_block: self.genesis_block.clone(),
+            state: Box::new(ContractState::new()),
+            vm: Box::new(BytecodeVM::<128>::new()),
         }
     }
 

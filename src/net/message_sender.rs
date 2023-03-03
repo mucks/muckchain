@@ -31,7 +31,7 @@ impl MessageSender {
         self.send_threaded(to, msg);
     }
 
-    pub fn broadcast_get_blockchain_status_threaded(&self) {
+    pub fn broadcast_get_status_threaded(&self) {
         let msg = Message::GetStatus;
         self.broadcast_threaded(msg);
     }

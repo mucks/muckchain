@@ -7,8 +7,10 @@ pub mod encoding;
 mod error;
 mod hash;
 mod hasher;
-mod storage;
+pub mod state;
+pub mod storage;
 mod transaction;
+pub mod vm;
 
 pub use address::*;
 pub use block::*;
@@ -18,5 +20,4 @@ pub use blockchain::*;
 pub use error::*;
 pub use hash::*;
 pub use hasher::*;
-pub use storage::*;
 pub use transaction::*;
