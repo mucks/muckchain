@@ -4,13 +4,14 @@ use crate::crypto::PrivateKey;
 use crate::net::message::Message;
 use crate::prelude::*;
 
+use super::transport::LocalTransport;
 use super::validator::Validator;
 use super::DynTransport;
 use super::{
     message_processor::MessageProcessor,
     message_sender::MessageSender,
     rpc::{new_channel, Channel},
-    tx_pool, LocalTransport, Network, TxPool,
+    tx_pool, Network, TxPool,
 };
 
 pub type NodeID = String;

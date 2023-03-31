@@ -1,15 +1,16 @@
 use std::{collections::HashMap, sync::Arc};
 
-use super::{
-    rpc::{Sender, RPC},
-    transport::DynTransport,
+use crate::{
+    net::rpc::{self, Sender, RPC},
+    prelude::NetAddr,
 };
+
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use log::debug;
 use tokio::sync::{Mutex, RwLock};
 
-use super::{net_addr::NetAddr, rpc, transport::Transport};
+use super::{DynTransport, Transport};
 
 #[derive(Debug, Clone)]
 pub struct LocalTransport {

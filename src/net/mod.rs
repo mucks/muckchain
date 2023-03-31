@@ -1,4 +1,3 @@
-mod local_transport;
 mod message;
 mod message_processor;
 mod message_sender;
@@ -10,7 +9,6 @@ mod transport;
 mod tx_pool;
 mod validator;
 
-pub use local_transport::LocalTransport;
 pub use message::*;
 pub use net_addr::NetAddr;
 pub use network::Network;

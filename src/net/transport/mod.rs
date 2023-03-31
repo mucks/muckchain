@@ -9,6 +9,11 @@ use std::fmt::Debug;
 
 pub type DynTransport = Box<dyn Transport>;
 
+mod local_transport;
+pub use local_transport::LocalTransport;
+mod tcp_transport;
+pub use tcp_transport::TcpTransport;
+
 #[async_trait]
 pub trait Transport: Send + Sync + Debug + DynClone {
     async fn broadcast(&self, data: Vec<u8>) -> Result<()>;

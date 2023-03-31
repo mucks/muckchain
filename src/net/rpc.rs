@@ -1,4 +1,7 @@
+use crate::prelude::Encodable;
+
 use super::net_addr::NetAddr;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -11,8 +14,11 @@ pub fn new_channel() -> Channel {
     (c.0, Arc::new(Mutex::new(c.1)))
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RPC {
     pub from: NetAddr,
     pub data: Vec<u8>,
 }
+
+#[typetag::serde]
+impl Encodable for RPC {}
