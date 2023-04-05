@@ -1,4 +1,4 @@
-use crate::core::state::State;
+use crate::core::state::{DynState, State};
 
 mod instruction;
 mod stack;
@@ -26,9 +26,26 @@ impl<const N: usize> BytecodeVM<N> {
         }
     }
 
-    pub fn execute_instruction(
+    fn arithmetic_operation<F>(&mut self, f: F) -> Result<()>
+    where
+        F: Fn(i32, i32) -> i32,
+    {
+        let a = self.stack.pop();
+        let b = self.stack.pop();
+
+        if let StackItem::Int(a) = a {
+            if let StackItem::Int(b) = b {
+                self.stack.push_front(StackItem::Int(f(a, b)));
+                return Ok(());
+            }
+        }
+
+        Err(anyhow::anyhow!("Invalid Stack Items"))
+    }
+
+    async fn execute_instruction(
         &mut self,
-        state: &dyn State,
+        state: &DynState,
         instr: Instruction,
         code: &[u8],
     ) -> Result<()> {
@@ -49,28 +66,45 @@ impl<const N: usize> BytecodeVM<N> {
                 self.stack.push_front(item);
             }
             Instruction::Add => {
-                let a = self.stack.pop();
-                let b = self.stack.pop();
-
-                if let StackItem::Int(a) = a {
-                    if let StackItem::Int(b) = b {
-                        self.stack.push_front(StackItem::Int(a + b));
-                        return Ok(());
-                    }
-                }
-                return Err(anyhow::anyhow!(
-                    "Can't run {:?} on {:?} and {:?}",
-                    instr,
-                    a,
-                    b
-                ));
+                self.arithmetic_operation(|a, b| a + b)?;
+            }
+            Instruction::Sub => {
+                self.arithmetic_operation(|a, b| a - b)?;
             }
             Instruction::Get => {
                 let key = self.stack.pop();
-                // if let StackItem::Byte(key) = key {
-                //     let val = state.get(key);
-                //     self.stack.push_front(val);
-                // }
+                let val = state.get(&key.to_bytes()).await?;
+
+                match val.len() {
+                    1 => {
+                        let item = StackItem::Byte(val[0]);
+                        self.stack.push_front(item)
+                    }
+                    4 => {
+                        let item =
+                            StackItem::Int(i32::from_le_bytes([val[0], val[1], val[2], val[3]]));
+                        self.stack.push_front(item);
+                    }
+                    64 => {
+                        let mut bytes = [0u8; 64];
+                        bytes.copy_from_slice(&val);
+                        let item = StackItem::Bytes(bytes);
+                        self.stack.push_front(item);
+                    }
+                    _ => {}
+                }
+            }
+            Instruction::Mul => {
+                self.arithmetic_operation(|a, b| a * b)?;
+            }
+            Instruction::Div => {
+                self.arithmetic_operation(|a, b| a / b)?;
+            }
+            Instruction::Store => {
+                let key = self.stack.pop();
+                let val = self.stack.pop();
+
+                state.set(&key.to_bytes(), &val.to_bytes()).await?;
             }
             _ => {}
         }
@@ -79,12 +113,13 @@ impl<const N: usize> BytecodeVM<N> {
     }
 }
 
+#[async_trait::async_trait]
 impl<const N: usize> VM for BytecodeVM<N> {
-    fn execute(&mut self, state: &dyn State, code: &[u8]) -> Result<()> {
+    async fn execute(&mut self, state: &DynState, code: &[u8]) -> Result<()> {
         loop {
             // TODO: handle this better (maybe check previous instruction and determine if we are getting a value)
             if let Ok(instr) = Instruction::try_from(code[self.ip]) {
-                self.execute_instruction(state, instr, code)?;
+                self.execute_instruction(state, instr, code).await?;
             }
 
             self.ip += 1;
@@ -100,18 +135,74 @@ impl<const N: usize> VM for BytecodeVM<N> {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::state::contract_state::ContractState;
+    use crate::core::state::mem_state::MemState;
 
     use super::*;
 
-    #[test]
-    fn test_vm() -> Result<()> {
+    #[tokio::test]
+    async fn test_vm() -> Result<()> {
         let mut vm: BytecodeVM<256> = BytecodeVM::new();
-        let code = vec![0x02, 0xaa, 0x03, 0xaa, 0xad, 0x02, 0xaa, 0xad];
-        vm.execute(&ContractState::new(), &code)?;
-        println!("{:?}", vm.stack);
+        let code = vec![0x02, 0xaa];
+        let state = Box::new(MemState::new()) as DynState;
+        vm.execute(&state, &code).await?;
         let res = vm.stack.pop();
-        assert_eq!(res, StackItem::Int(7));
+        assert_eq!(res, StackItem::Int(2));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_vm_add() -> Result<()> {
+        let mut vm: BytecodeVM<256> = BytecodeVM::new();
+        let code = vec![0x02, 0xaa, 0x03, 0xaa, 0xad];
+        let state = Box::new(MemState::new()) as DynState;
+        vm.execute(&state, &code).await?;
+        let res = vm.stack.pop();
+        assert_eq!(res, StackItem::Int(5));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_vm_sub() -> Result<()> {
+        let mut vm: BytecodeVM<256> = BytecodeVM::new();
+        let code = vec![0x03, 0xaa, 0x02, 0xaa, 0xae];
+        let state = Box::new(MemState::new()) as DynState;
+        vm.execute(&state, &code).await?;
+        let res = vm.stack.pop();
+        assert_eq!(res, StackItem::Int(-1));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_vm_mul() -> Result<()> {
+        let mut vm: BytecodeVM<256> = BytecodeVM::new();
+        let code = vec![0x03, 0xaa, 0x02, 0xaa, 0xba];
+        let state = Box::new(MemState::new()) as DynState;
+        vm.execute(&state, &code).await?;
+        let res = vm.stack.pop();
+        assert_eq!(res, StackItem::Int(6));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_vm_div() -> Result<()> {
+        let mut vm: BytecodeVM<256> = BytecodeVM::new();
+        let code = vec![0x02, 0xaa, 0x02, 0xaa, 0xbb];
+        let state = Box::new(MemState::new()) as DynState;
+        vm.execute(&state, &code).await?;
+        let res = vm.stack.pop();
+        assert_eq!(res, StackItem::Int(1));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_vm_store() -> Result<()> {
+        let mut vm: BytecodeVM<256> = BytecodeVM::new();
+        let code = vec![0x02, 0xaa, 0x04, 0xaa, 0xbc];
+        let state = Box::new(MemState::new()) as DynState;
+        vm.execute(&state, &code).await?;
+        let v = state.get(&[4, 0, 0, 0]).await?;
+        assert_eq!(v, vec![2, 0, 0, 0]);
+
         Ok(())
     }
 }

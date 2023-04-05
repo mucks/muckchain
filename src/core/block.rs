@@ -17,15 +17,8 @@ pub struct Block {
     hash: Option<Hash>,
 }
 
-#[typetag::serde]
-impl Encodable for Block {}
-
-#[typetag::serde]
-impl Decodable for Block {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
+encodable!(Block);
+decodable!(Block);
 
 impl Block {
     pub fn new(header: BlockHeader, transactions: Vec<Transaction>) -> Self {

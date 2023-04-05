@@ -16,15 +16,8 @@ pub struct Transaction {
     first_seen: u128,
 }
 
-#[typetag::serde]
-impl Encodable for Transaction {}
-
-#[typetag::serde]
-impl Decodable for Transaction {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
+encodable!(Transaction);
+decodable!(Transaction);
 
 //TODO: add method to sign the transaction
 impl Transaction {

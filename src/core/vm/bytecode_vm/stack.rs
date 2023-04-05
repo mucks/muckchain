@@ -6,6 +6,17 @@ pub enum StackItem {
     Bytes([u8; 64]),
 }
 
+impl StackItem {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::Int(i) => i.to_le_bytes().to_vec(),
+            Self::Bool(b) => vec![*b as u8],
+            Self::Byte(b) => vec![*b],
+            Self::Bytes(b) => b.to_vec(),
+        }
+    }
+}
+
 impl Default for StackItem {
     fn default() -> Self {
         Self::Int(0)

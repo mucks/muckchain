@@ -48,8 +48,14 @@ impl Blockchain {
             .validate(self, &mut block, &self.config.hashers.block_hasher)
             .await?;
 
-        // TODO: implement execution of transaction code
-        for tx in block.transactions.iter() {}
+        // The vm is cloned here because we don't need the mutability
+        // the vm only serves as a way to execute the txs
+        let mut vm = self.config.vm.clone();
+
+        for tx in block.transactions.iter() {
+            // configured vm executes the tx
+            vm.execute(&self.config.state, &tx.data).await?;
+        }
 
         self.add_block_without_validation(block).await?;
 

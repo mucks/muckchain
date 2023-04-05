@@ -14,14 +14,8 @@ pub enum Message {
     Blocks(Vec<Block>),
 }
 
-#[typetag::serde]
-impl Decodable for Message {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-#[typetag::serde]
-impl Encodable for Message {}
+encodable!(Message);
+decodable!(Message);
 
 impl Message {
     pub fn from_rpc(decoder: &DynDecoder, rpc: &RPC) -> Result<Self> {
@@ -39,5 +33,4 @@ pub struct Status {
     pub height: u32,
 }
 
-#[typetag::serde]
-impl Encodable for Status {}
+encodable!(Status);

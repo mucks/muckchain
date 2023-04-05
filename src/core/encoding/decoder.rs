@@ -23,3 +23,16 @@ pub trait Decoder: Debug + DynClone + Send + Sync {
 }
 
 dyn_clone::clone_trait_object!(Decoder);
+
+macro_rules! decodable {
+    ($a:ident) => {
+        #[typetag::serde]
+        impl Decodable for $a {
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+        }
+    };
+}
+
+pub(crate) use decodable;

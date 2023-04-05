@@ -7,12 +7,12 @@ use std::fmt::Debug;
 
 pub mod bytecode_vm;
 
-use super::state::State;
-
+use super::state::DynState;
 pub type DynVM = Box<dyn VM>;
 
+#[async_trait::async_trait]
 pub trait VM: Debug + DynClone + Send + Sync {
-    fn execute(&mut self, state: &dyn State, code: &[u8]) -> Result<()>;
+    async fn execute(&mut self, state: &DynState, code: &[u8]) -> Result<()>;
 }
 
 dyn_clone::clone_trait_object!(VM);

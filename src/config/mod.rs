@@ -2,7 +2,7 @@ use crate::{
     core::{
         create_genesis_block,
         encoding::{json_decoder::JsonDecoder, json_encoder::JsonEncoder},
-        state::contract_state::ContractState,
+        state::mem_state::MemState,
         storage::mem_storage::MemStorage,
         storage::DynStorage,
         vm::bytecode_vm::BytecodeVM,
@@ -65,7 +65,7 @@ impl Config {
             storage: self.storage.clone(),
             block_validator: self.block_validator.clone(),
             genesis_block: self.genesis_block.clone(),
-            state: Box::new(ContractState::new()),
+            state: Box::new(MemState::new()),
             vm: Box::new(BytecodeVM::<128>::new()),
         }
     }
