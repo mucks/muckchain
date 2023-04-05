@@ -63,8 +63,10 @@ impl MessageProcessor {
     }
 
     async fn proces_status(&self, from: NetAddr, status: Status) -> Result<()> {
+        // Get height from node that made the GetStatus Request
         let height = self.blockchain.height().await;
 
+        // If our height is lower than the node that made the GetStatus Request, request blocks
         if height < status.height {
             debug!("Node={} requesting blocks", self.node_id);
 

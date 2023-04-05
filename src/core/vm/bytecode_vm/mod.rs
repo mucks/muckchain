@@ -116,6 +116,8 @@ impl<const N: usize> BytecodeVM<N> {
 #[async_trait::async_trait]
 impl<const N: usize> VM for BytecodeVM<N> {
     async fn execute(&mut self, state: &DynState, code: &[u8]) -> Result<()> {
+        self.ip = 0;
+
         loop {
             // TODO: handle this better (maybe check previous instruction and determine if we are getting a value)
             if let Ok(instr) = Instruction::try_from(code[self.ip]) {
@@ -202,6 +204,11 @@ mod tests {
         vm.execute(&state, &code).await?;
         let v = state.get(&[4, 0, 0, 0]).await?;
         assert_eq!(v, vec![2, 0, 0, 0]);
+
+        vm.execute(&state, &[0x04, 0xaa, 0xaf]).await?;
+
+        let res = vm.stack.pop();
+        assert_eq!(res, StackItem::Int(2));
 
         Ok(())
     }

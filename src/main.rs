@@ -17,10 +17,12 @@ async fn main() -> Result<()> {
     let network = Network::new();
 
     let private_key = PrivateKey::generate();
+
     let local =
         create_and_start_node(network.clone(), "LOCAL_NODE", "TR_LOCAL", Some(private_key)).await?;
 
     let remote = create_and_start_node(network.clone(), "REMOTE_NODE", "TR_REMOTE", None).await?;
+
     add_late_node(network.clone()).await?;
 
     network.listen().await;

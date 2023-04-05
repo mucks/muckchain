@@ -14,6 +14,7 @@ pub fn new_channel() -> Channel {
     (c.0, Arc::new(Mutex::new(c.1)))
 }
 
+// Remote Procedure Call
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RPC {
     pub from: NetAddr,

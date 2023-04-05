@@ -26,6 +26,7 @@ classDiagram
   Transaction: data
   Transaction: pubKey
   Transaction: signature
+  Transaction --> VM
   Blockchain: add_block(block)
   VM *-- ByteCodeVM
   VM: execute()
