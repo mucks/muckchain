@@ -88,3 +88,17 @@ impl Transaction {
         encoder.encode(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_transaction() -> Result<()> {
+        let mut t = Transaction::new(vec![1, 2, 3]);
+        let private_key = PrivateKey::generate();
+        t.sign(&private_key);
+        t.verify()?;
+        Ok(())
+    }
+}
