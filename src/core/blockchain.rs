@@ -135,28 +135,42 @@ impl Blockchain {
             self.get_header(height - 1).await
         }
     }
+}
 
-    // pub async fn get_prev_header_hash(&self, height: u32) -> Result<Hash> {
-    //     let prev_header = self.get_prev_header(height).await.ok_or_else(|| {
-    //         anyhow!(
-    //             "could not get previous block header for block_height: {}",
-    //             height
-    //         )
-    //     })?;
-    //     self.block_hasher.hash(&prev_header)
-    // }
+#[cfg(test)]
+mod tests {
 
-    // pub async fn get_prev_block_hash(
-    //     &self,
-    //     hasher: &dyn Hasher<BlockHeader>,
-    //     height: u32,
-    // ) -> Result<Hash> {
-    //     let prev_header = self.get_prev_header(height).await.ok_or_else(|| {
-    //         anyhow!(
-    //             "could not get previous block header for block_height: {}",
-    //             height
-    //         )
-    //     })?;
-    //     hasher.hash(&prev_header)
-    // }
+    use crate::{config::Config, util::random_block};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_blockchain() -> Result<()> {
+        let mut config = Config::default();
+
+        let blockchain = Blockchain::new(config.blockchain_config()).await.unwrap();
+
+        assert_eq!(blockchain.len().await, 1);
+        assert_eq!(blockchain.height().await, 0);
+        assert_eq!(
+            blockchain
+                .get_block(0)
+                .await?
+                .hash(&config.hashers.block_hasher)?,
+            config.genesis_block.hash(&config.hashers.block_hasher)?
+        );
+
+        let block = random_block(
+            1,
+            config.genesis_block.hash(&config.hashers.block_hasher)?,
+            &config.encoding.encoder,
+        )?;
+
+        blockchain.add_block(block).await.unwrap();
+
+        assert_eq!(blockchain.len().await, 2);
+        assert_eq!(blockchain.height().await, 1);
+
+        Ok(())
+    }
 }

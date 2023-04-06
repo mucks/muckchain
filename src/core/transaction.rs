@@ -94,4 +94,14 @@ mod tests {
         t.verify()?;
         Ok(())
     }
+
+    #[test]
+    fn test_transaction_invalid() -> Result<()> {
+        let mut t = Transaction::new(vec![1, 2, 3]);
+        let private_key = PrivateKey::generate();
+        t.sign(&private_key);
+        t.data = vec![1, 2, 4];
+        assert!(t.verify().is_err());
+        Ok(())
+    }
 }

@@ -9,6 +9,7 @@ use crate::{
         BlockHasher, BlockchainConfig, DefaultBlockValidator, DynBlockValidator, TxHasher,
     },
     crypto::PrivateKey,
+    net::DynTransport,
     prelude::*,
 };
 

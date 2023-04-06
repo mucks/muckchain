@@ -1,14 +1,32 @@
 # Muckchain
-Simple blockchain written in Rust.
+Simple modular blockchain written in Rust.
 
 
+### modules
+
+- config (contains the config)
+- core (contains the blockchain, blocks, transactions, etc.)
+- net (contains everything related to networking, like the transport layer, message processor, etc.)
+- crypto (contains the crypto stuff, like the private key, signature, etc.)
+
+### modular parts
+
+- Encoding
+- VM
+- State (State for VM)
+- BlockValidator
+- Transport (Local, TCP, UDP)
+- Storage (used to store blocks)
+- Hasher (used to hash Transactions, Blocks, etc.)
+
+
+### Simple Class Diagram
 ```mermaid
 classDiagram
   Node --> Validator: if validator
   Node --> MessageProcessor
   Node --> MessageSender
   Node --> Blockchain
-  Node --> Encoding
   Node: id
   Node: config
   Blockchain --> VM
@@ -32,7 +50,6 @@ classDiagram
   VM: execute()
   note for VM "executes transactions\nhandles contract state"
   VM <--> State
-  Encoding *-- JsonEncoding
   Transport *-- LocalTransport
   Transport *-- TcpTransport
   Transport: send(to, msg)
@@ -47,11 +64,37 @@ classDiagram
   Validator --> MessageSender
   Validator: privKey
   Validator: create_new_block()
-  Encoding: encode()
-  Encoding: decode()
-
 
 
 ```
 
+### Node communication
+
+```mermaid
+sequenceDiagram
+  participant LocalNode
+  participant RemoteNode
+  participant LateNode
+  Note over LocalNode: is validator
+  Note left of RemoteNode: Block Syncing
+  LocalNode->>RemoteNode: get status
+  RemoteNode->>LocalNode: status
+  LocalNode->>RemoteNode: get blocks
+  RemoteNode->>LocalNode: blocks
+  LocalNode->>LateNode: get status
+  LateNode->>LocalNode: status
+  LocalNode->>LateNode: get blocks
+  LateNode->>LocalNode: blocks
+  Note left of RemoteNode: Block Creation
+  loop blocktime
+    LocalNode-->LocalNode: Create Block
+    LocalNode->>RemoteNode: send block
+    LocalNode->>LateNode: send block
+  end
+```
+
+### Roadmap
+
+- add multiple consensus algorithms
+- add multiple vm's (maybe support a webscraping vm?)
 
